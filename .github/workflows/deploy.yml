@@ -65,6 +65,19 @@ jobs:
 
       # scripts/build-studio.mjs: rhwp v0.8.7(핀 커밋)을 sparse-clone → 이음 패치(한컴 단축키·모양 복사·메모 등)
       # 적용 → apps/hwp/public/studio 에 base './' 상대경로 번들 생성
+      # 이음 빌드는 오프라인 앱이라 CDN 웹폰트를 끄고(public/fonts도 제외) OS 글꼴에 기댄다.
+      # 아이패드에는 함초롬바탕/맑은 고딕이 없어 글꼴 없이 편집 → 줄바꿈 등에서 에러.
+      # 원본 사이트(edwardkim.github.io/rhwp)처럼 CDN 웹폰트를 켜고 번들 글꼴(assets/fonts)도 받는다.
+      - name: Patch build for the web (webfonts on, bundled fonts in)
+        working-directory: openoffice
+        run: |
+          f=apps/hwp/scripts/build-studio.mjs
+          sed -i "s/__RHWP_DISABLE_EXTERNAL_WEBFONTS__: 'true'/__RHWP_DISABLE_EXTERNAL_WEBFONTS__: 'false'/" "$f"
+          sed -i "s#  '!/rhwp-studio/public/fonts',#  '/assets/fonts/',#" "$f"
+          grep -n "__RHWP_DISABLE_EXTERNAL_WEBFONTS__: 'false'" "$f"
+          grep -n "'/assets/fonts/'" "$f"
+          node --check "$f"
+
       - name: Build rhwp-studio with 이음 patches
         working-directory: openoffice
         run: npm run studio -w @genoffice/hwp -- --force
@@ -87,6 +100,13 @@ jobs:
           cp -r "$STUDIO_OUT"/. site/
           rm -f site/.stamp
           touch site/.nojekyll
+
+          # --- 번들 글꼴: vite가 public/fonts 심볼릭 링크를 못 따라갔을 때를 대비해 직접 복사 ---
+          mkdir -p site/fonts
+          cp -n openoffice/apps/hwp/node_modules/.cache/rhwp-studio/*/assets/fonts/*.woff2 site/fonts/ || true
+          cp -n openoffice/apps/hwp/node_modules/.cache/rhwp-studio/*/assets/fonts/*.txt openoffice/apps/hwp/node_modules/.cache/rhwp-studio/*/assets/fonts/*.md site/fonts/ 2>/dev/null || true
+          echo "fonts: $(ls site/fonts | wc -l) files"
+          test -f site/fonts/NotoSansKR-Regular.woff2
 
           # --- icons (ImageMagick이 runner에 기본 설치) ---
           make_icon() {
