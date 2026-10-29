@@ -78,9 +78,27 @@ jobs:
           grep -n "'/assets/fonts/'" "$f"
           node --check "$f"
 
+      # 1차 빌드: rhwp 소스를 node_modules/.cache/rhwp-studio/<tag>/ 에 받아 둔다
       - name: Build rhwp-studio with 이음 patches
         working-directory: openoffice
         run: npm run studio -w @genoffice/hwp -- --force
+
+      # hwp-pad 자체 패치(patches/*.mjs)를 받아 둔 rhwp 소스에 적용하고 다시 빌드한다.
+      # build-studio.mjs는 캐시의 HEAD가 핀 커밋이면 다시 받지 않으므로 수정본이 그대로 번들된다.
+      - name: Apply hwp-pad patches to rhwp-studio source
+        run: |
+          engine=$(ls -d openoffice/apps/hwp/node_modules/.cache/rhwp-studio/*/rhwp-studio/src/engine)
+          echo "engine dir: $engine"
+          for p in patches/*.mjs; do node "$p" "$engine"; done
+          grep -n "\[hwp-pad\]" "$engine/input-handler-keyboard.ts" "$engine/input-handler-mouse.ts"
+
+      - name: Rebuild rhwp-studio with hwp-pad patches
+        working-directory: openoffice
+        run: |
+          npm run studio -w @genoffice/hwp -- --force 2>&1 | tee /tmp/studio-build.log
+          grep -q "rhwp-studio: built" /tmp/studio-build.log
+          # 번들에 패치가 들어갔는지: _iosAnchor 초기화 코드의 흔적(문자열은 minify로 바뀌므로 소스 쪽을 확인)
+          grep -c "\[hwp-pad\]" apps/hwp/node_modules/.cache/rhwp-studio/*/rhwp-studio/src/engine/input-handler-keyboard.ts
 
       # ubuntu-24.04 runner에는 ImageMagick이 없다 (22.04까지는 있었음) → 아이콘 생성용으로 설치
       - name: Install ImageMagick (for icons)
