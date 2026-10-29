@@ -1,0 +1,187 @@
+# hwp-pad — 이음오피스(pblsketch/openoffice)의 HWP 편집기(rhwp-studio + 이음 패치)를
+# GitHub Pages에 PWA로 배포한다. 아이패드 사파리에서 열어 홈 화면에 추가하면 앱처럼 쓴다.
+#
+# 이 레포에는 이 파일 하나만 있어도 된다. 매니페스트·아이콘·.nojekyll은 빌드 중에 만든다.
+# 처음 한 번: Settings → Pages → Build and deployment → Source = "GitHub Actions"
+# (configure-pages의 enablement:true가 자동으로 켜 주지만, 안 켜지면 수동으로.)
+#
+# 결과: https://hvsodream.github.io/hwp-pad/
+
+name: Deploy hwp-pad to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      openoffice_ref:
+        description: 'pblsketch/openoffice ref to build (branch, tag or commit)'
+        required: false
+        default: 'main'
+  schedule:
+    # 매주 월요일 03:00 KST(일 18:00 UTC) — openoffice 최신 main을 다시 빌드해 반영
+    - cron: '0 18 * * 0'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  OPENOFFICE_REPO: pblsketch/openoffice
+  SITE_NAME: 'HWP Pad'
+  SITE_SHORT: 'HWP Pad'
+  THEME_COLOR: '#1f2937'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout hwp-pad (this repo)
+        uses: actions/checkout@v4
+
+      - name: Checkout openoffice
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.OPENOFFICE_REPO }}
+          ref: ${{ github.event.inputs.openoffice_ref || 'main' }}
+          path: openoffice
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: openoffice/package-lock.json
+
+      # postinstall(install-electron)은 건너뛴다. 스튜디오 빌드는 vite + @rhwp/core(vendor)만 쓴다.
+      - name: Install dependencies
+        working-directory: openoffice
+        run: npm ci --ignore-scripts
+
+      # scripts/build-studio.mjs: rhwp v0.8.7(핀 커밋)을 sparse-clone → 이음 패치(한컴 단축키·모양 복사·메모 등)
+      # 적용 → apps/hwp/public/studio 에 base './' 상대경로 번들 생성
+      - name: Build rhwp-studio with 이음 patches
+        working-directory: openoffice
+        run: npm run studio -w @genoffice/hwp -- --force
+
+      - name: Assemble site (manifest, icons, iOS meta)
+        env:
+          STUDIO_OUT: openoffice/apps/hwp/public/studio
+          OPENOFFICE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test -f "$STUDIO_OUT/index.html"
+          rm -rf site && mkdir -p site/icons
+          cp -r "$STUDIO_OUT"/. site/
+          rm -f site/.stamp
+          touch site/.nojekyll
+
+          # --- icons (ImageMagick이 runner에 기본 설치) ---
+          make_icon() {
+            local size="$1" out="$2"
+            convert -size "${size}x${size}" xc:"$THEME_COLOR" \
+              -fill white -gravity center \
+              -font DejaVu-Sans-Bold -pointsize "$((size * 36 / 100))" -annotate +0+0 'HWP' \
+              "$out" 2>/dev/null \
+            || convert -size "${size}x${size}" xc:"$THEME_COLOR" "$out"
+          }
+          make_icon 180 site/icons/apple-touch-icon.png
+          make_icon 192 site/icons/icon-192.png
+          make_icon 512 site/icons/icon-512.png
+          # maskable: 여백 있는 버전
+          convert site/icons/icon-512.png -gravity center -background "$THEME_COLOR" -extent 640x640 -resize 512x512 site/icons/icon-512-maskable.png
+
+          # --- manifest ---
+          cat > site/manifest.webmanifest <<EOF
+          {
+            "name": "$SITE_NAME",
+            "short_name": "$SITE_SHORT",
+            "description": "HWP/HWPX 편집기 (rhwp-studio + 이음오피스 한컴 단축키 패치) — iPad용 PWA",
+            "id": "./",
+            "start_url": "./",
+            "scope": "./",
+            "display": "standalone",
+            "orientation": "any",
+            "background_color": "#ffffff",
+            "theme_color": "$THEME_COLOR",
+            "lang": "ko",
+            "icons": [
+              { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+              { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+              { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+            ],
+            "file_handlers": [
+              {
+                "action": "./",
+                "accept": {
+                  "application/x-hwp": [".hwp"],
+                  "application/hwp+zip": [".hwpx"],
+                  "application/vnd.hancom.hwp": [".hwp"],
+                  "application/vnd.hancom.hwpx": [".hwpx"]
+                }
+              }
+            ]
+          }
+          EOF
+
+          # --- index.html에 매니페스트·iOS 메타 삽입 (viewport는 viewport-fit=cover로 보정) ---
+          node - <<'EOF'
+          const fs = require('fs');
+          const p = 'site/index.html';
+          let html = fs.readFileSync(p, 'utf8');
+          const theme = process.env.THEME_COLOR;
+          const name = process.env.SITE_NAME;
+          const inject = [
+            '<link rel="manifest" href="manifest.webmanifest">',
+            `<meta name="theme-color" content="${theme}">`,
+            '<meta name="mobile-web-app-capable" content="yes">',
+            '<meta name="apple-mobile-web-app-capable" content="yes">',
+            '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">',
+            `<meta name="apple-mobile-web-app-title" content="${name}">`,
+            '<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">',
+            `<!-- built from ${process.env.OPENOFFICE_REPO} @ ${new Date().toISOString()} by hwp-pad ${process.env.OPENOFFICE_SHA} -->`,
+          ].join('\n    ');
+          if (!/rel="manifest"/.test(html)) {
+            html = html.replace(/<\/head>/i, `    ${inject}\n  </head>`);
+          }
+          // 아이패드 홈화면 모드에서 노치/홈바 영역까지 쓰도록
+          html = html.replace(
+            /<meta\s+name="viewport"\s+content="([^"]*)"\s*\/?>/i,
+            (m, c) => (/viewport-fit/.test(c) ? m : `<meta name="viewport" content="${c}, viewport-fit=cover">`),
+          );
+          fs.writeFileSync(p, html);
+          console.log('index.html patched:', fs.statSync(p).size, 'bytes');
+          EOF
+
+          # --- 빌드 정보 ---
+          (cd openoffice && git rev-parse HEAD) > site/BUILD_INFO.txt
+          echo "openoffice ref: ${{ github.event.inputs.openoffice_ref || 'main' }}" >> site/BUILD_INFO.txt
+          date -u +"built: %Y-%m-%dT%H:%M:%SZ" >> site/BUILD_INFO.txt
+          du -sh site
+          ls -la site | head -40
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
