@@ -69,6 +69,13 @@ jobs:
         working-directory: openoffice
         run: npm run studio -w @genoffice/hwp -- --force
 
+      # ubuntu-24.04 runner에는 ImageMagick이 없다 (22.04까지는 있었음) → 아이콘 생성용으로 설치
+      - name: Install ImageMagick (for icons)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends imagemagick fonts-dejavu-core > /dev/null
+          convert -version | head -1
+
       - name: Assemble site (manifest, icons, iOS meta)
         env:
           STUDIO_OUT: openoffice/apps/hwp/public/studio
