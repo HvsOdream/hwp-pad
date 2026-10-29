@@ -1,4 +1,4 @@
-# 한결 오피스 (레포: hwp-pad) — 이음오피스(pblsketch/openoffice)의 HWP 편집기(rhwp-studio + 이음 패치)를
+# 한뜻 오피스 (레포: hwp-pad) — 이음오피스(pblsketch/openoffice)의 HWP 편집기(rhwp-studio + 이음 패치)를
 # GitHub Pages에 PWA로 배포한다. 아이패드 사파리·PC 크롬에서 열어 홈 화면/앱으로 설치해 쓴다.
 #
 # 이 레포에는 이 파일 하나만 있어도 된다. 매니페스트·아이콘·.nojekyll은 빌드 중에 만든다.
@@ -33,9 +33,9 @@ concurrency:
 
 env:
   OPENOFFICE_REPO: pblsketch/openoffice
-  SITE_NAME: '한결 오피스'
-  SITE_SHORT: '한결'
-  ICON_TEXT: '한결'
+  SITE_NAME: '한뜻 오피스'
+  SITE_SHORT: '한뜻'
+  ICON_TEXT: '한뜻'
   THEME_COLOR: '#1f2937'
 
 jobs:
@@ -92,7 +92,7 @@ jobs:
           echo "engine dir: $engine"
           for p in patches/*.mjs; do node "$p" "$engine"; done
           grep -n "\[hwp-pad\]" "$engine/input-handler-keyboard.ts" "$engine/input-handler-mouse.ts"
-          grep -n "한결" "$engine/../ui/document-title.ts" "$engine/../../index.html"
+          grep -n "한뜻" "$engine/../ui/document-title.ts" "$engine/../../index.html"
 
       - name: Rebuild rhwp-studio with hwp-pad patches
         working-directory: openoffice
@@ -129,7 +129,7 @@ jobs:
           echo "fonts: $(ls site/fonts | wc -l) files"
           test -f site/fonts/NotoSansKR-Regular.woff2
 
-          # --- icons: 「한결」 두 글자 (나눔고딕 볼드; 없으면 단색 배경만) ---
+          # --- icons: 「한뜻」 두 글자 (나눔고딕 볼드; 없으면 단색 배경만) ---
           ICON_FONT=/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf
           make_icon() {
             local size="$1" out="$2"
@@ -150,7 +150,7 @@ jobs:
           {
             "name": "$SITE_NAME",
             "short_name": "$SITE_SHORT",
-            "description": "한결 오피스 — 어디서나 HWP/HWPX 문서 편집 (rhwp-studio + 이음오피스 패치, PWA)",
+            "description": "한뜻 오피스 — 어디서나 HWP/HWPX 문서 편집 (rhwp-studio + 이음오피스 패치, PWA)",
             "id": "./",
             "start_url": "./",
             "scope": "./",
