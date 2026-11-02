@@ -379,6 +379,13 @@ jobs:
           })();
           EOF
 
+      # (Assemble 단계가 GitHub의 run 스크립트 길이 한도(21000자)를 넘어 둘로 나눴다)
+      - name: Assemble site — 안내 페이지·시작 안내·네이티브 훅
+        env:
+          OPENOFFICE_REF: ${{ github.event.inputs.openoffice_ref || 'main' }}
+          OPENOFFICE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
           # --- 단축키 안내 페이지: docs/단축키_대조표.md → site/shortcuts.html (표만 있는 마크다운이라 작은 변환기로 충분) ---
           node - <<'EOF'
           const fs = require('fs');
@@ -541,7 +548,7 @@ jobs:
 
           # --- 빌드 정보 ---
           (cd openoffice && git rev-parse HEAD) > site/BUILD_INFO.txt
-          echo "openoffice ref: ${{ github.event.inputs.openoffice_ref || 'main' }}" >> site/BUILD_INFO.txt
+          echo "openoffice ref: ${OPENOFFICE_REF}" >> site/BUILD_INFO.txt
           date -u +"built: %Y-%m-%dT%H:%M:%SZ" >> site/BUILD_INFO.txt
           du -sh site
           ls -la site | head -40
