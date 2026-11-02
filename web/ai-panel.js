@@ -328,7 +328,7 @@
     var p = isMock() ? mockReply() : fetch(ls(LS_URL) || DEFAULT_URL, {
       method: 'POST',
       headers: apiHeaders(),
-      body: JSON.stringify({ model: ls(LS_MODEL) || DEFAULT_MODEL, max_tokens: 2048, system: SYSTEM, tools: [TOOL], messages: S.msgs }),
+      body: JSON.stringify({ model: ls(LS_MODEL) || DEFAULT_MODEL, max_tokens: 2048, system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }], tools: [TOOL], messages: cached(S.msgs) }),
     }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status)); return j; }); });
     p.then(function (res) {
       thinking.remove();
@@ -338,6 +338,18 @@
       thinking.remove(); S.msgs.pop();
       say('err', 'AI 호출 실패: ' + (err && err.message || err));
     }).then(function () { busy(false); });
+  }
+
+  // 프롬프트 캐시: 지시문과 지금까지의 대화(첨부 포함)를 캐시해 두 번째 질문부터는 입력 값을 크게 줄인다
+  function cached(msgs) {
+    var out = msgs.map(function (m) { return { role: m.role, content: m.content }; });
+    for (var i = out.length - 1; i >= 0; i--) {
+      if (out[i].role === 'user' && Array.isArray(out[i].content) && out[i].content.length) {
+        var c = out[i].content.slice(), last = Object.assign({}, c[c.length - 1], { cache_control: { type: 'ephemeral' } });
+        c[c.length - 1] = last; out[i] = { role: 'user', content: c }; break;
+      }
+    }
+    return out;
   }
 
   function handle(blocks) {
