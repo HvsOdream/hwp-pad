@@ -1,0 +1,39 @@
+{
+  "name": "seoil-office-desktop",
+  "productName": "서일 오피스",
+  "version": "0.1.0",
+  "description": "서일 오피스 — 한글(HWP) 문서 편집 + AI 작성 도우미 (윈도우 설치판)",
+  "author": "HvsOdream",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.hvsodream.seoiloffice",
+    "productName": "서일 오피스",
+    "executableName": "SeoilOffice",
+    "artifactName": "SeoilOffice-Setup-${version}.${ext}",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "preload.js", "package.json"],
+    "win": { "target": ["nsis"], "icon": "build/icon.png" },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "서일 오피스",
+      "language": "1042"
+    },
+    "fileAssociations": [
+      { "ext": "hwp", "name": "HWP", "description": "한글 문서", "role": "Editor" },
+      { "ext": "hwpx", "name": "HWPX", "description": "한글 문서 (HWPX)", "role": "Editor" }
+    ]
+  }
+}

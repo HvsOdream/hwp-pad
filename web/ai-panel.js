@@ -8,7 +8,14 @@
   var LS_KEY = 'seoil.ai.key', LS_MODEL = 'seoil.ai.model', LS_DEPT = 'seoil.ai.dept', LS_URL = 'seoil.ai.url';
   var DEFAULT_MODEL = 'claude-sonnet-5-5';
   var DEFAULT_URL = 'https://api.anthropic.com/v1/messages';
-  var MOCK = /[?&]ai=mock\b/.test(location.search);
+  var LS_DEV = 'seoil.ai.dev', LS_MOCK = 'seoil.ai.mock';
+  // 개발자 모드: 주소에 ?dev=1(끄기 ?dev=0), 또는 패널 제목을 5번 누르기. 키 넣기·빼기, 모델, 서버 주소, 시험 모드는 여기서만.
+  (function () {
+    var m = location.search.match(/[?&]dev=([01])\b/);
+    if (m) { try { if (m[1] === '1') localStorage.setItem('seoil.ai.dev', '1'); else localStorage.removeItem('seoil.ai.dev'); } catch (e) {} }
+  })();
+  function isDev() { return ls(LS_DEV) === '1'; }
+  function isMock() { return /[?&]ai=mock\b/.test(location.search) || ls(LS_MOCK) === '1'; }
   var W = 380;
 
   function ls(k, v) {
@@ -119,7 +126,12 @@
     var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
     var fab = el('button', { id: 'seoil-ai-fab', title: 'AI 작성 도우미', onclick: toggle, text: 'AI 작성' });
     ui.title = el('b', { style: 'font-size:15px', text: 'AI 작성 도우미' });
-    ui.engine = el('span', { class: 'badge', text: MOCK ? '시험 모드' : 'Claude API' });
+    ui.engine = el('span', { class: 'badge' });
+    var taps = 0, tapT = 0;
+    ui.title.addEventListener('click', function () {
+      var now = Date.now(); taps = now - tapT < 800 ? taps + 1 : 1; tapT = now;
+      if (taps >= 5) { taps = 0; ls(LS_DEV, isDev() ? null : '1'); drawSettings(); ui.set.style.display = isDev() ? 'flex' : 'none'; say('sys', isDev() ? '개발자 모드를 켰습니다.' : '개발자 모드를 껐습니다.'); }
+    });
     ui.form = el('div', { style: 'font-size:12px;color:#5F6670', text: '' });
     ui.bar = el('i'); ui.chk = el('div', { class: 'chk' });
     ui.prog = el('div', { style: 'font-size:12px;color:#5F6670' });
@@ -130,17 +142,8 @@
         el('button', { class: 'ibtn', title: '닫기', onclick: toggle, text: '닫기' })]),
       ui.form, ui.prog, el('div', { class: 'bar' }, [ui.bar]), ui.chk,
     ]);
-    ui.key = el('input', { type: 'password', placeholder: 'sk-ant-…', value: ls(LS_KEY) });
-    ui.dept = el('input', { type: 'text', placeholder: '예) AI게임융합학과', value: ls(LS_DEPT) || 'AI게임융합학과' });
-    ui.model = el('input', { type: 'text', value: ls(LS_MODEL) || DEFAULT_MODEL });
-    ui.set = el('div', { class: 'set', style: 'display:none' }, [
-      el('label', null, ['Claude API 키 (이 기기 브라우저에만 저장)', ui.key]),
-      el('label', null, ['우리 부서', ui.dept]),
-      el('label', null, ['모델', ui.model]),
-      el('div', { class: 'row' }, [
-        el('button', { class: 'send', style: 'height:34px', onclick: saveSettings, text: '저장' }),
-        el('span', { class: 'note', text: '파일럿 동안만 각자 키를 씁니다. 교내 sLLM으로 바꾸면 키가 필요 없습니다.' })]),
-    ]);
+    ui.set = el('div', { class: 'set', style: 'display:none' });
+    drawSettings();
     ui.log = el('div', { class: 'log' });
     ui.att = el('div', { class: 'att' });
     ui.file = el('input', { type: 'file', multiple: 'multiple', accept: '.hwp,.hwpx,.pdf,.png,.jpg,.jpeg,.txt,.md', style: 'display:none', onchange: onFiles });
@@ -158,9 +161,54 @@
     refreshForm();
   }
 
-  function saveSettings() {
-    ls(LS_KEY, ui.key.value.trim() || null); ls(LS_DEPT, ui.dept.value.trim() || null); ls(LS_MODEL, ui.model.value.trim() || null);
-    ui.set.style.display = 'none'; say('sys', '설정을 저장했습니다.');
+  function mask(k) { return k ? k.slice(0, 7) + '…' + k.slice(-4) : ''; }
+  function drawSettings() {
+    ui.engine.textContent = isMock() ? '시험 모드' : (ls(LS_URL) ? '교내 서버' : 'Claude API');
+    ui.set.innerHTML = '';
+    var dept = el('input', { type: 'text', placeholder: '예) AI게임융합학과', value: ls(LS_DEPT) || 'AI게임융합학과' });
+    ui.set.appendChild(el('label', null, ['우리 부서 (회신 공문의 주체)', dept]));
+    ui.set.appendChild(el('div', { class: 'row' }, [el('button', { class: 'send', style: 'height:34px', text: '저장', onclick: function () {
+      ls(LS_DEPT, dept.value.trim() || null); ui.set.style.display = 'none'; say('sys', '부서를 저장했습니다.');
+    } })]));
+    if (!isDev()) { ui.set.appendChild(el('div', { class: 'note', text: 'AI 키는 관리자가 개발자 모드에서 넣습니다.' + (ls(LS_KEY) ? ' (이 기기: 키 있음)' : ' (이 기기: 키 없음)') })); return; }
+    var key = el('input', { type: 'password', placeholder: 'sk-ant-…', autocomplete: 'off' });
+    var model = el('input', { type: 'text', value: ls(LS_MODEL) || DEFAULT_MODEL });
+    var url = el('input', { type: 'text', placeholder: DEFAULT_URL, value: ls(LS_URL) });
+    var mock = el('input', { type: 'checkbox' }); mock.checked = ls(LS_MOCK) === '1';
+    var keyState = el('div', { style: 'font-size:12px', text: ls(LS_KEY) ? ('키 있음: ' + mask(ls(LS_KEY))) : '키 없음' });
+    ui.set.appendChild(el('div', { style: 'border-top:1px dashed #D9DCE1;padding-top:10px;font-size:12px;font-weight:700;color:#B4570E', text: '개발자 모드' }));
+    ui.set.appendChild(keyState);
+    ui.set.appendChild(el('label', null, ['Claude API 키 (이 기기에만 저장, 화면에 다시 보이지 않음)', key]));
+    ui.set.appendChild(el('div', { class: 'row' }, [
+      el('button', { class: 'send', style: 'height:34px', text: '키 넣기', onclick: function () {
+        var v = key.value.trim(); if (!v) return; ls(LS_KEY, v); key.value = ''; drawSettings(); say('sys', '키를 넣었습니다.');
+      } }),
+      el('button', { class: 'chip', text: '키 빼기', onclick: function () { ls(LS_KEY, null); drawSettings(); say('sys', '이 기기에서 키를 지웠습니다.'); } }),
+      el('button', { class: 'chip', text: '키 시험', onclick: testKey }),
+    ]));
+    ui.set.appendChild(el('label', null, ['모델', model]));
+    ui.set.appendChild(el('label', null, ['서버 주소 (비우면 Claude API — 나중에 교내 sLLM 주소)', url]));
+    ui.set.appendChild(el('label', { style: 'flex-direction:row;align-items:center;gap:6px' }, [mock, '시험 모드 (AI 부르지 않고 정해진 답)']));
+    ui.set.appendChild(el('div', { class: 'row' }, [
+      el('button', { class: 'send', style: 'height:34px', text: '개발 설정 저장', onclick: function () {
+        ls(LS_MODEL, model.value.trim() || null); ls(LS_URL, url.value.trim() || null); ls(LS_MOCK, mock.checked ? '1' : null);
+        drawSettings(); say('sys', '개발 설정을 저장했습니다.');
+      } }),
+      el('button', { class: 'chip', text: '개발자 모드 끄기', onclick: function () { ls(LS_DEV, null); drawSettings(); ui.set.style.display = 'none'; } }),
+    ]));
+  }
+
+  function testKey() {
+    if (!ls(LS_KEY)) { say('err', '키가 없습니다.'); return; }
+    var t = say('sys', '키 시험 중…');
+    fetch(ls(LS_URL) || DEFAULT_URL, { method: 'POST', headers: apiHeaders(),
+      body: JSON.stringify({ model: ls(LS_MODEL) || DEFAULT_MODEL, max_tokens: 16, messages: [{ role: 'user', content: '확인. "됨"이라고만 답해.' }] }) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status)); return j; }); })
+      .then(function (j) { t.remove(); say('sys', '키 정상 (' + (j.model || '') + ')'); })
+      .catch(function (e) { t.remove(); say('err', '키 시험 실패: ' + (e && e.message || e)); });
+  }
+  function apiHeaders() {
+    return { 'content-type': 'application/json', 'x-api-key': ls(LS_KEY), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' };
   }
 
   function toggle() {
@@ -183,7 +231,7 @@
     var i = info();
     if (!i) say('ai', '업무협조전 양식(hwp)을 먼저 열어 주세요. 그룹웨어에서 내려받은 기안 양식이나 지난 업무협조전 파일이면 됩니다.\n\n그다음 받은 요청 공문을 첨부하면, 제출 회신을 채워 드릴게요.');
     else say('ai', '받은 요청 공문(hwp·pdf)을 첨부하거나, 무엇을 쓸지 말해 주세요.\n칸은 원본 양식 위에 그대로 씁니다.');
-    if (!MOCK && !ls(LS_KEY)) { say('sys', '처음이면 오른쪽 위 「설정」에서 Claude API 키를 넣어 주세요.'); ui.set.style.display = 'flex'; }
+    if (!isMock() && !ls(LS_KEY)) say('sys', '이 기기에 AI 키가 아직 없습니다. 관리자가 개발자 모드에서 넣어 주세요.');
   }
 
   function say(kind, text) { var b = el('div', { class: kind, text: text }); ui.log.appendChild(b); ui.log.scrollTop = ui.log.scrollHeight; return b; }
@@ -260,7 +308,7 @@
     text = text != null ? text : ui.input.value.trim();
     if (!text && !S.attach.length) return;
     if (!info()) { say('err', '업무협조전 양식을 먼저 열어 주세요.'); return; }
-    if (!MOCK && !ls(LS_KEY)) { say('err', '설정에서 Claude API 키를 먼저 넣어 주세요.'); ui.set.style.display = 'flex'; return; }
+    if (!isMock() && !ls(LS_KEY)) { say('err', '이 기기에 AI 키가 없습니다. 관리자에게 개발자 모드에서 키를 넣어 달라고 해 주세요.'); return; }
     var content = [];
     if (S.pendingTool) { content.push({ type: 'tool_result', tool_use_id: S.pendingTool, content: '적용됨' }); S.pendingTool = null; }
     S.attach.forEach(function (a) { content.push(a.block); });
@@ -277,14 +325,9 @@
   function call() {
     busy(true);
     var thinking = say('sys', '읽고 쓰는 중…');
-    var p = MOCK ? mockReply() : fetch(ls(LS_URL) || DEFAULT_URL, {
+    var p = isMock() ? mockReply() : fetch(ls(LS_URL) || DEFAULT_URL, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': ls(LS_KEY),
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
+      headers: apiHeaders(),
       body: JSON.stringify({ model: ls(LS_MODEL) || DEFAULT_MODEL, max_tokens: 2048, system: SYSTEM, tools: [TOOL], messages: S.msgs }),
     }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status)); return j; }); });
     p.then(function (res) {

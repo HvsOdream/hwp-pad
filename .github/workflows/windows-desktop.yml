@@ -1,0 +1,52 @@
+name: Windows desktop (설치판)
+
+# 서일 오피스 윈도우 설치판(Electron 껍데기)을 만들어 GitHub Releases에 올린다.
+# 껍데기는 배포된 웹을 띄우므로, 웹만 바뀔 때는 다시 만들 필요가 없다(desktop/ 이 바뀔 때만).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['desktop/**', '.github/workflows/windows-desktop.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: App icon (from the deployed web icons)
+        run: |
+          mkdir -p build
+          curl -fsSL https://hvsodream.github.io/hwp-pad/icons/icon-512.png -o build/icon.png
+          ls -la build
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Build NSIS installer
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          npm run dist
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SeoilOffice-Setup
+          path: desktop/dist/*.exe
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(node -p "require('./package.json').version")
+          TAG="desktop-v$V-${{ github.run_number }}"
+          gh release create "$TAG" dist/*.exe \
+            --title "서일 오피스 윈도우 설치판 $V (빌드 ${{ github.run_number }})" \
+            --notes "설치 파일을 받아 실행하세요. 서명되지 않은 파일이라 Windows가 경고하면 「추가 정보 → 실행」을 누릅니다. 편집기는 실행할 때마다 최신 웹 버전을 불러옵니다." \
+            --target "${{ github.sha }}"
