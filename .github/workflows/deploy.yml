@@ -546,6 +546,14 @@ jobs:
           du -sh site
           ls -la site | head -40
 
+      # iOS 앱 빌드(ios-testflight.yml)가 같은 웹 번들을 쓰도록 아티팩트로도 남긴다
+      - name: Upload site artifact (for the iOS app build)
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: site
+          retention-days: 14
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:

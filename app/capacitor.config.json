@@ -1,0 +1,18 @@
+{
+  "appId": "com.hvsodream.seoiloffice",
+  "appName": "서일 오피스",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "ios": {
+    "contentInset": "never",
+    "scheme": "seoiloffice",
+    "limitsNavigationsToAppBoundDomains": false,
+    "preferredContentMode": "desktop"
+  },
+  "server": {
+    "iosScheme": "capacitor"
+  },
+  "plugins": {
+    "Keyboard": { "resize": "none" }
+  }
+}

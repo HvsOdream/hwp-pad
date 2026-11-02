@@ -62,7 +62,8 @@ GitHub Pages에 PWA로 올린 것. 아이패드 사파리에서 "홈 화면에 �
   → 파일의 family name으로 문서 글꼴과 자동 매칭, 안 맞으면 "이 글꼴을 '맑은 고딕'으로 쓰기" 지정. 글꼴은 기기 밖으로 안 나감(라이선스 문제 없음).
   아이패드는 Files 앱에서 선택(AirDrop/Dropbox). 이음 패치처럼 스튜디오 플러그인으로 얹음
 - **단축키**: (해결) 아이패드 외장 키보드에서 Ctrl·Alt 계열 모두 동작 확인(2026-10-29). 줄바꿈·Backspace도 `ios-input.mjs`로 해결
-- 3단계: Capacitor로 앱 포팅 (hwpApi를 네이티브 파일 접근으로 교체)
+- 3단계: Capacitor로 앱 포팅 — **준비 완료(2026-11-02)**: `app/`(Capacitor 껍데기+네이티브 브릿지: 파일 앱 열기·제자리 덮어쓰기), `patches/native-bridge.mjs`,
+  `.github/workflows/ios-testflight.yml`(macOS 러너 → match 서명 → TestFlight). Apple 개인 계정 + Secrets 6개만 넣으면 됨 → `docs/ios-testflight.md`
 
 ## 참고
 

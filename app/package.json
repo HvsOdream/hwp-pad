@@ -1,0 +1,21 @@
+{
+  "name": "seoil-office-app",
+  "private": true,
+  "version": "0.1.0",
+  "description": "서일 오피스 — Capacitor 껍데기 (iOS/TestFlight). 웹 번들은 GitHub Pages 빌드 산출물(site)을 그대로 쓴다.",
+  "scripts": {
+    "sync": "cap sync ios"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2",
+    "@capacitor/app": "^6.0.1",
+    "@capacitor/filesystem": "^6.0.1",
+    "@capacitor/share": "^6.0.2",
+    "@capacitor/status-bar": "^6.0.1",
+    "@capacitor/keyboard": "^6.0.2"
+  }
+}

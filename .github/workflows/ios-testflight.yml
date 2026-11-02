@@ -1,0 +1,125 @@
+# 서일 오피스 — iOS 앱(Capacitor) 빌드 → TestFlight. 웹 번들은 Pages 배포(deploy.yml)가 올린 `site` 아티팩트를 그대로 쓴다.
+# 처음 켜기 전에 레포 Secrets 6개가 있어야 한다: docs/ios-testflight.md 참조.
+name: iOS TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '앱 버전 (CFBundleShortVersionString)'
+        default: '0.1.0'
+      changelog:
+        description: '테스터에게 보일 변경 내용'
+        default: '서일 오피스 테스트 빌드'
+  workflow_run:
+    workflows: ["Deploy hwp-pad to GitHub Pages"]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    # 자동 트리거는 Pages 배포가 성공했을 때만, 그리고 TestFlight 시크릿이 세팅된 뒤에만
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      APP_ID: com.hvsodream.seoiloffice
+      APP_NAME: 서일 오피스
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+      MATCH_GIT_URL: https://github.com/HvsOdream/ios-certs.git
+      APP_VERSION: ${{ github.event.inputs.version || '0.1.0' }}
+      CHANGELOG: ${{ github.event.inputs.changelog || '서일 오피스 테스트 빌드' }}
+      BUILD_NUMBER: ${{ github.run_number }}
+      LC_ALL: ko_KR.UTF-8
+      LANG: ko_KR.UTF-8
+    steps:
+      - name: Secrets check
+        id: check
+        run: |
+          missing=""
+          for v in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64 APPLE_TEAM_ID MATCH_PASSWORD MATCH_GIT_BASIC_AUTHORIZATION; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then echo "::error::TestFlight 시크릿 누락:$missing — docs/ios-testflight.md"; exit 1; fi
+            echo "::notice::TestFlight 시크릿이 아직 없어 건너뜀:$missing"; echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.go == 'true'
+
+      - name: Setup Node 22
+        if: steps.check.outputs.go == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download web bundle (latest successful Pages build)
+        if: steps.check.outputs.go == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id="${{ github.event.workflow_run.id }}"
+          if [ -z "$run_id" ]; then
+            run_id=$(gh run list --workflow deploy.yml --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          fi
+          echo "site from deploy run $run_id"
+          rm -rf app/www && mkdir -p app/www
+          gh run download "$run_id" -n site -D app/www
+          test -f app/www/index.html
+          du -sh app/www
+
+      - name: Inject native bridge into index.html
+        if: steps.check.outputs.go == 'true'
+        run: |
+          cp app/native/native.js app/www/native.js
+          node - <<'EOF2'
+          const fs = require('fs');
+          const p = 'app/www/index.html';
+          let html = fs.readFileSync(p, 'utf8');
+          if (!html.includes('native.js')) html = html.replace(/<\/head>/i, '    <script src="native.js" defer></script>\n  </head>');
+          fs.writeFileSync(p, html);
+          EOF2
+          grep -n "native.js" app/www/index.html
+
+      - name: Install Capacitor
+        if: steps.check.outputs.go == 'true'
+        working-directory: app
+        run: npm install --no-audit --no-fund
+
+      - name: Prepare iOS project
+        if: steps.check.outputs.go == 'true'
+        working-directory: app
+        run: bash scripts/prepare-ios.sh
+
+      - name: Select Xcode
+        if: steps.check.outputs.go == 'true'
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)" || true
+          xcodebuild -version
+
+      - name: Fastlane beta (match → build → TestFlight)
+        if: steps.check.outputs.go == 'true'
+        working-directory: app
+        run: fastlane ios beta
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-logs
+          path: |
+            ~/Library/Logs/gym/*.log
+            app/build/*.log
+          if-no-files-found: ignore
