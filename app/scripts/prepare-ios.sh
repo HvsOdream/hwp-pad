@@ -10,6 +10,13 @@ test -f www/index.html
 if [ ! -d ios ]; then npx cap add ios; fi
 npx cap sync ios
 
+# 최소 iOS 15.0 (App Store Connect ITMS-90068: 2027-04부터 15.0 이상만 업로드 가능)
+sed -i '' -E 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/App/App.xcodeproj/project.pbxproj
+sed -i '' -E "s/^platform :ios, '[0-9.]+'/platform :ios, '15.0'/" ios/App/Podfile
+(cd ios/App && pod install)
+grep -c "IPHONEOS_DEPLOYMENT_TARGET = 15.0" ios/App/App.xcodeproj/project.pbxproj
+grep -n "^platform :ios" ios/App/Podfile
+
 PLIST=ios/App/App/Info.plist
 PB="/usr/libexec/PlistBuddy -c"
 
