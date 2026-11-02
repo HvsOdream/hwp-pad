@@ -78,11 +78,6 @@ jobs:
           grep -n "__RHWP_DISABLE_EXTERNAL_WEBFONTS__: 'false'" "$f"
           grep -n "'/assets/fonts/'" "$f"
           node --check "$f"
-          # 한글 Ctrl+G,Z(전체 화면) → hwp-pad 단축키 모드 (명령은 patches/hancom-web.mjs가 main.ts에 등록)
-          k=apps/hwp/studio-plugin/hancom-keys.mjs
-          sed -i "0,/^  g: {$/s//  g: {\n    z: 'hwppad:fullscreen',/" "$k"
-          grep -n "hwppad:fullscreen" "$k"
-          node --check "$k"
 
       # 1차 빌드: rhwp 소스를 node_modules/.cache/rhwp-studio/<tag>/ 에 받아 둔다
       - name: Build rhwp-studio with 이음 patches
@@ -96,6 +91,12 @@ jobs:
           engine=$(ls -d openoffice/apps/hwp/node_modules/.cache/rhwp-studio/*/rhwp-studio/src/engine)
           echo "engine dir: $engine"
           for p in patches/*.mjs; do node "$p" "$engine"; done
+          # 한글 Ctrl+G,Z(전체 화면) → 단축키 모드. 명령 hwppad:fullscreen은 hancom-web.mjs가 view.ts에 넣었으므로
+          # 이제 이음 build-studio의 명령 존재 검사를 통과한다(1차 빌드 전에 넣으면 검사에 걸림).
+          k=openoffice/apps/hwp/studio-plugin/hancom-keys.mjs
+          sed -i "0,/^  g: {$/s//  g: {\n    z: 'hwppad:fullscreen',/" "$k"
+          grep -n "hwppad:fullscreen" "$k" "$engine/../command/commands/view.ts"
+          node --check "$k"
           grep -n "\[hwp-pad\]" "$engine/input-handler-keyboard.ts" "$engine/input-handler-mouse.ts"
           grep -n "서일" "$engine/../ui/document-title.ts" "$engine/../../index.html"
 

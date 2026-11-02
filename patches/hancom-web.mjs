@@ -5,7 +5,7 @@
 // 아무도 호출하지 않는다. 그 구멍과, 한컴 공식 단축키표(help.hancom.com hoffice130 Hwp)에서 빠진 대체 키를 메운다.
 //
 //  1. main.ts — 메인 프로세스 대행: Ctrl+E/C/X(셀 블록·표 선택), Ctrl+Shift+S(셀 블록 합계)를 window.__ieumHancomKey로.
-//               + 명령 hwppad:fullscreen(전체 화면 = 단축키 모드, keylock.js) 등록.
+//     view.ts — 명령 hwppad:fullscreen(전체 화면 = 단축키 모드, keylock.js) 등록.
 //  2. shortcut-map.ts — Alt+O/S/V/P(불러오기·저장·다른 이름으로·인쇄), Ctrl+J(쪽 나누기), Ctrl+Shift+W/Q(줄 간격),
 //               Ctrl+Shift+Insert/Delete(문단 번호·글머리표).
 //  3. input-handler-keyboard.ts — Alt+V 연속키(보기, 맥 전용 계승)를 맥에서만. 윈도우에선 한글대로 '다른 이름으로 저장'.
@@ -57,13 +57,28 @@ window.addEventListener('keydown', (e: KeyboardEvent) => {
     e.stopImmediatePropagation();
   }
 }, true);
-// [hwp-pad] 한글 Ctrl+G,Z 전체 화면 = 단축키 모드(keylock.js: 전체 화면 + Keyboard Lock)
-registry.register({
-  id: 'hwppad:fullscreen',
-  label: '전체 화면 (단축키 모드)',
-  shortcutLabel: 'Ctrl+G,Z',
-  execute: () => { (window as any).__hwppadKeylock?.toggle?.(); },
-});`,
+`,
+]])
+
+// ── 1b. command/commands/view.ts — 한글 Ctrl+G,Z 전체 화면 = 단축키 모드(keylock.js) ─────
+// (이음 build-studio.mjs가 CHORDS의 명령 id를 src/command/commands/*.ts에서 찾으므로 여기 둔다)
+const view = join(dir, '..', 'command', 'commands', 'view.ts')
+patch(view, [[
+  "      userSettings.setToolbarFormat(!userSettings.getViewSettings().toolbarFormat);\n      syncToolboxMenu();\n    },\n  } satisfies CommandDef,\n];",
+  `      userSettings.setToolbarFormat(!userSettings.getViewSettings().toolbarFormat);
+      syncToolboxMenu();
+    },
+  } satisfies CommandDef,
+  // [hwp-pad] 한글 Ctrl+G,Z '전체 화면' → 단축키 모드(전체 화면 + Keyboard Lock, site/keylock.js). 토글은 창 전역 객체가 맡는다.
+  {
+    id: 'hwppad:fullscreen',
+    label: '전체 화면 (단축키 모드)',
+    shortcutLabel: 'Ctrl+G,Z',
+    execute() {
+      (window as any).__hwppadKeylock?.toggle?.();
+    },
+  } satisfies CommandDef,
+];`,
 ]])
 
 // ── 2. shortcut-map.ts ──────────────────────────────────────────────────────
@@ -105,5 +120,5 @@ patch(kb, [[
 ]])
 
 // 확인용 표식
-for (const f of [main, map, kb]) if (!existsSync(f)) throw new Error('missing ' + f)
+for (const f of [main, map, kb, view]) if (!existsSync(f)) throw new Error('missing ' + f)
 console.log('[hwp-pad] hancom-web: ok')

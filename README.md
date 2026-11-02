@@ -19,7 +19,7 @@ GitHub Pages에 PWA로 올린 것. 아이패드 사파리에서 "홈 화면에 �
     `key`만 적힌 정의(줄간격 A/Z, 글자 크기 E/R, Alt+N/L/T)가 안 맞았다. 자간·장평(J/K/N/W)은 원래 code가 있어 됐음.
 - `hancom-web.mjs` (2026-11-02): 한글 단축키 마감. 이음 hancom-keys가 Electron 메인 프로세스에 맡겼던 Ctrl+E/C/X(셀 블록·표)·Ctrl+Shift+S(블록 합계)를
     브라우저에서 `window.__ieumHancomKey`로 되묻고, Alt+O/S/V/P·Ctrl+J·Ctrl+Shift+W/Q·Ctrl+Shift+Insert/Delete 추가, Alt+V 보기 연속키는 맥만.
-    명령 `hwppad:fullscreen`(Ctrl+G,Z) 등록 — 워크플로가 이음 CHORDS.g에 z를 심는다. 전체 대조표: `docs/단축키_대조표.md`.
+    명령 `hwppad:fullscreen`(Ctrl+G,Z)을 view.ts에 등록 — 워크플로가 1차 빌드 뒤 이음 CHORDS.g에 z를 심는다(이음 빌드의 명령 존재 검사 때문에 순서 중요). 전체 대조표: `docs/단축키_대조표.md`.
 - `keylock.js` (2026-11-02, 워크플로가 생성): **단축키 모드** — PC 크롬·엣지에서 Ctrl+N,T(표)·Ctrl+T·Ctrl+W 같은 조합을 브라우저가 먼저 가로채는 문제.
     Ctrl+G,Z(한글 '전체 화면') 또는 우하단 「⌨ 단축키 모드」 버튼 → JS 전체화면 + `navigator.keyboard.lock()`으로 페이지가 그 키를 먼저 받는다. 해제는 Esc 길게 또는 Ctrl+G,Z. (F11은 한글대로 개체 선택.)
     「자동」 체크 시 다음 방문부터 첫 클릭에서 자동 진입(전체화면은 사용자 동작 없이 못 연다). 사파리·아이패드는 브라우저 단축키가 Cmd라 충돌이 없어 버튼이 안 뜬다.
