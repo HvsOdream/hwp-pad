@@ -30,10 +30,8 @@ function patch(file, pairs) {
 
 // ── 1. main.ts ──────────────────────────────────────────────────────────────
 const main = join(dir, '..', 'main.ts')
-const anchor = 'installHancomMainKeys(window, () => inputHandler, dispatcher);'
-if (!readFileSync(main, 'utf8').includes(anchor)) {
-  throw new Error('main.ts: 이음 studio-hancom-commands 패치가 보이지 않음 — hancom-keys가 빌드에 없나?')
-}
+// 이음 패치(studio-hancom-commands)는 재빌드 때 이 줄을 찾아 뒤에 자기 코드를 붙인다. 줄은 그대로 두고 그 뒤에 넣는다.
+const anchor = 'registry.registerAll(toolCommands);'
 patch(main, [[
   anchor,
   anchor + `
@@ -83,11 +81,10 @@ patch(view, [[
 
 // ── 2. shortcut-map.ts ──────────────────────────────────────────────────────
 const map = join(dir, '..', 'command', 'shortcut-map.ts')
+// 이음 패치(studio-hancom-shortcuts)가 마지막 항목+`];`를 찾으므로 그 앞에 끼운다.
 patch(map, [[
   "  [{ key: 'p', ctrl: true, shift: true }, 'table:block-product'],\n];",
-  `  [{ key: 'p', ctrl: true, shift: true }, 'table:block-product'],
-
-  // [hwp-pad] 한글 2024 공식 단축키표의 대체 키 (help.hancom.com hoffice130/Hwp)
+  `  // [hwp-pad] 한글 2024 공식 단축키표의 대체 키 (help.hancom.com hoffice130/Hwp)
   // 파일: Alt+O 불러오기 · Alt+S 저장 · Alt+V 다른 이름으로 저장 · Alt+P 인쇄 (맥은 Option+글자가 문자라 제외)
   [{ key: 'o', code: 'KeyO', alt: true, platform: 'other' }, 'file:open'],
   [{ key: 'ㅐ', alt: true, platform: 'other' }, 'file:open'],
@@ -108,6 +105,7 @@ patch(map, [[
   // 서식: Ctrl+Shift+Insert 문단 번호 적용/해제 · Ctrl+Shift+Delete 글머리표 적용/해제
   [{ key: 'insert', code: 'Insert', ctrl: true, shift: true }, 'format:toggle-numbering'],
   [{ key: 'delete', code: 'Delete', ctrl: true, shift: true }, 'format:toggle-bullet'],
+  [{ key: 'p', ctrl: true, shift: true }, 'table:block-product'],
 ];`,
 ]])
 
