@@ -31,7 +31,10 @@
   }
 
   // 양식 안의 문단에서 단계별 모양을 고른다: num(자동 번호 1. 2.), sub(가. 나.), attach(붙임), cont(붙임 둘째 줄 이후)
-  function styles(paras) {
+  // 문단 모양은 처음 본 원본 양식에서 배워 둔다(한 번 채운 뒤에는 붙임·가. 문단이 사라질 수 있으므로).
+  var learned = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+
+  function styles(paras, fallbackPs) {
     var st = {};
     paras.forEach(function (p) {
       if (p.numbered && !st.num) st.num = { ps: p.ps, cs: p.cs, prefix: '' };
@@ -39,8 +42,8 @@
       else if (/^붙임/.test(p.text) && !st.attach) st.attach = { ps: p.ps, cs: p.cs, gap: (p.text.match(/^붙임(\s*)/) || [])[1] || '  ' };
       else if (st.attach && !st.cont && /^\s+\d+\./.test(p.text)) st.cont = { ps: p.ps, cs: p.cs, prefix: p.text.match(/^\s*/)[0] };
     });
-    var plain = paras.find(function (p) { return !p.numbered; }) || paras[0];
-    st.plain = { ps: plain.ps, cs: plain.cs, prefix: '' };
+    var plain = paras.find(function (p) { return !p.numbered; });
+    st.plain = plain ? { ps: plain.ps, cs: plain.cs, prefix: '' } : { ps: fallbackPs, cs: paras[0].cs, prefix: '' };
     if (!st.num) st.num = { ps: st.plain.ps, cs: st.plain.cs, prefix: '', manual: true };
     if (!st.sub) st.sub = { ps: st.plain.ps, cs: st.plain.cs, prefix: '  ' };
     if (!st.attach) st.attach = { ps: st.plain.ps, cs: st.plain.cs, gap: '  ' };
@@ -55,6 +58,12 @@
     var r = cellRef(fm.body);
     if (!r) return null;
     var paras = readCell(doc, r);
+    var st = learned && learned.get(doc);
+    if (!st) {
+      var tr = cellRef(fm.doctitle), fb = tr ? J(doc.getCellParaPropertiesAt(tr.s, tr.p, tr.c, tr.cell, 0)).paraShapeId : paras[0].ps;
+      st = styles(paras, fb);
+      if (learned) learned.set(doc, st);
+    }
     return {
       kind: (fm.organ && fm.organ.value.trim()) || '기안문',
       fields: {
@@ -64,7 +73,7 @@
       },
       body: paras.map(function (p) { return p.text; }),
       bodyRef: r,
-      styles: styles(paras),
+      styles: st,
     };
   }
 

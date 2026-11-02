@@ -60,6 +60,7 @@
     '#seoil-ai .note{font-size:11px;color:#8A9099}',
     '#seoil-ai-fab{position:fixed;right:14px;bottom:64px;z-index:2147481999;font:600 13px "Noto Sans KR",system-ui,sans-serif;padding:10px 14px;border:0;border-radius:22px;background:#2F5BEA;color:#fff;box-shadow:0 4px 14px rgba(47,91,234,.35);cursor:pointer}',
     'body.seoil-ai-open #seoil-ai-fab{display:none}',
+    'body.seoil-ai-open #hwppad-keylock,body.seoil-ai-open #hwppad-help,body.seoil-ai-open #hwppad-install{margin-right:' + W + 'px!important}',
   ].join('\n');
 
   // ---------- AI 지시문 ----------
