@@ -513,6 +513,9 @@ jobs:
           })();
           EOF
 
+          # --- AI 작성 도우미 (web/: 양식 칸 쓰기 + 패널) ---
+          cp web/seoil-form.js web/ai-panel.js site/
+
           # --- index.html에 매니페스트·iOS 메타 삽입 (viewport는 viewport-fit=cover로 보정) ---
           node - <<'EOF'
           const fs = require('fs');
@@ -532,6 +535,8 @@ jobs:
             '<script src="install.js" defer></script>',
             '<script src="keylock.js" defer></script>',
             '<script src="guide.js" defer></script>',
+            '<script src="seoil-form.js" defer></script>',
+            '<script src="ai-panel.js" defer></script>',
             `<!-- built from ${process.env.OPENOFFICE_REPO} @ ${new Date().toISOString()} by hwp-pad ${process.env.OPENOFFICE_SHA} -->`,
           ].join('\n    ');
           if (!/rel="manifest"/.test(html)) {
