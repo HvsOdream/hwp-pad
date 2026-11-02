@@ -8,7 +8,7 @@
 - `app/native/native.js` — 앱 안에서만 붙는 브릿지: 파일 앱에서 .hwp/.hwpx/.hml "서일 오피스로 열기" → 편집기로, **Ctrl+S는 원본 제자리 덮어쓰기**(rhwp 파일 핸들 인터페이스를 Filesystem 플러그인으로 구현).
 - `patches/native-bridge.mjs` — 편집기에 `window.rhwpStudio.openBytes(bytes, name, handle)` 창구를 뚫는다.
 - `app/scripts/prepare-ios.sh` — `cap add ios` 뒤 Info.plist(문서 형식·제자리 열기·파일 공유·아이패드 방향)와 AppDelegate(보안 범위 URL) 손질.
-- `app/fastlane/Fastfile` — `create_app_online`(App ID·ASC 앱 레코드 자동 생성) → `match`(인증서·프로파일을 `HvsOdream/ios-certs` 비공개 레포에 암호화 보관, 없으면 생성) → `build_app` → `upload_to_testflight`.
+- `app/fastlane/Fastfile` — `match`(인증서·프로파일을 `HvsOdream/ios-certs` 비공개 레포에 암호화 보관, 없으면 생성) → `build_app` → `upload_to_testflight`.
 - `.github/workflows/ios-testflight.yml` — 수동 실행(workflow_dispatch) 또는 Pages 배포 성공 뒤 자동. Secrets가 없으면 자동 실행은 조용히 건너뛴다.
 
 앱 ID: `com.hvsodream.seoiloffice` · 앱 이름: 서일 오피스 · 최소 iOS: Capacitor 6 기본(13+) · 아이패드·아이폰 공용.
@@ -46,6 +46,12 @@
 | `MATCH_GIT_BASIC_AUTHORIZATION` | 3-3 |
 
 (값들을 채팅으로 주셔도 됩니다 — 제가 `gh secret set`으로 넣을 수 있습니다. 다만 .p8은 한 번만 받을 수 있으니 파일은 따로 보관하세요.)
+
+### 4-1. App ID·앱 레코드 (수동, 1회)
+`create_app_online`은 API 키 조합에서 파라미터 오류가 나서 웹에서 직접 만들었다(2026-11-02):
+- developer.apple.com → Identifiers → + → App IDs → App → Description `Seoil Office`, Explicit `com.hvsodream.seoiloffice` → Register
+- appstoreconnect.apple.com → 앱 → + → 신규 앱: iOS · 이름 `서일 오피스` · 한국어 · 번들 ID 선택 · SKU `seoil-office` · 전체 액세스 → 생성
+블룸렌즈도 같은 두 단계를 먼저 한다.
 
 ### 5. 첫 실행
 1. Actions → **iOS TestFlight** → Run workflow (version 0.1.0). 첫 빌드 15~25분(CocoaPods·인증서 생성 포함).

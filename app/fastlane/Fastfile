@@ -16,15 +16,7 @@ platform :ios do
     )
     setup_ci
 
-    # 처음 한 번: 개발자 포털 App ID + App Store Connect 앱 레코드 생성 (있으면 건너뜀)
-    create_app_online(
-      api_key: api_key,
-      app_identifier: app_id,
-      app_name: ENV.fetch("APP_NAME", "서일 오피스"),
-      language: "ko",
-      sku: "seoil-office",
-      skip_itc: false,
-    ) rescue UI.message("create_app_online: 이미 있거나 생략")
+    # App ID(개발자 포털)·앱 레코드(App Store Connect)는 2026-11-02 웹에서 직접 만들었다 — 새 앱은 docs/ios-testflight.md 참조
 
     # 배포용 인증서·프로파일: ios-certs 레포에 암호화 보관, 없으면 API 키로 만든다
     match(type: "appstore", app_identifier: app_id, api_key: api_key, readonly: false)
