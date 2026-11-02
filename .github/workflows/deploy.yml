@@ -379,6 +379,133 @@ jobs:
           })();
           EOF
 
+          # --- 단축키 안내 페이지: docs/단축키_대조표.md → site/shortcuts.html (표만 있는 마크다운이라 작은 변환기로 충분) ---
+          node - <<'EOF'
+          const fs = require('fs');
+          const md = fs.readFileSync('docs/단축키_대조표.md', 'utf8');
+          const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          const inline = (s) => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+          let out = [], table = null;
+          const flush = () => { if (table) { out.push('<table>' + table.join('') + '</table>'); table = null; } };
+          for (const raw of md.split('\n')) {
+            const line = raw.trimEnd();
+            if (/^\|/.test(line)) {
+              const cells = line.slice(1, line.endsWith('|') ? -1 : undefined).split('|').map((c) => c.trim());
+              if (cells.every((c) => /^-+$/.test(c))) continue;
+              const tag = table ? 'td' : 'th';
+              if (!table) table = [];
+              table.push('<tr>' + cells.map((c) => `<${tag}>${inline(c)}</${tag}>`).join('') + '</tr>');
+              continue;
+            }
+            flush();
+            if (/^# /.test(line)) out.push(`<h1>${inline(line.slice(2))}</h1>`);
+            else if (/^## /.test(line)) out.push(`<h2>${inline(line.slice(3))}</h2>`);
+            else if (/^- /.test(line)) out.push(`<li>${inline(line.slice(2))}</li>`);
+            else if (line) out.push(`<p>${inline(line)}</p>`);
+          }
+          flush();
+          const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>${process.env.SITE_NAME} — 단축키 안내</title>
+          <style>
+            :root{color-scheme:light dark;--fg:#111827;--bg:#fff;--line:#e5e7eb;--muted:#6b7280;--acc:#1d4ed8}
+            @media(prefers-color-scheme:dark){:root{--fg:#e5e7eb;--bg:#111827;--line:#374151;--muted:#9ca3af;--acc:#93c5fd}}
+            body{margin:0;padding:24px 16px 60px;font:14px/1.6 -apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:var(--fg);background:var(--bg)}
+            main{max-width:860px;margin:0 auto}h1{font-size:22px;margin:0 0 6px}h2{font-size:16px;margin:28px 0 8px;padding-top:12px;border-top:1px solid var(--line)}
+            p{margin:6px 0;color:var(--muted)}li{margin:4px 0 4px 18px}code{font:12px ui-monospace,Consolas,monospace;background:rgba(127,127,127,.15);padding:1px 5px;border-radius:4px}
+            table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}th{background:rgba(127,127,127,.1)}
+            td:nth-child(2){white-space:nowrap;font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+            .top{position:sticky;top:0;background:var(--bg);padding:8px 0;border-bottom:1px solid var(--line);margin-bottom:12px;display:flex;gap:12px;align-items:center}
+            .top a{color:var(--acc);text-decoration:none}.top .sp{flex:1}
+            .box{border:1px solid var(--line);border-left:4px solid var(--acc);padding:10px 14px;border-radius:6px;margin:14px 0}
+          </style></head><body><main>
+          <div class="top"><a href="./">← 편집기로</a><span class="sp"></span><a href="#" onclick="window.print();return false">인쇄</a></div>
+          <div class="box"><strong>먼저 알아둘 것</strong><br>
+          • 한글 2024와 같은 키를 그대로 씁니다. 별도의 단축키 설정 화면은 없습니다(한글의 「사용자 설정 → 단축키」 같은 바꾸기 기능은 아직 없음).<br>
+          • 🔒 표시 키(Ctrl+N 계열 등)는 <strong>단축키 모드</strong>에서만 됩니다 — PC 크롬·엣지에서 <code>Ctrl+G, Z</code> 또는 오른쪽 아래 ⌨ 버튼. 나올 땐 Esc 길게.<br>
+          • 명령을 이름으로 찾으려면 <code>Ctrl+/</code> (명령 팔레트).</div>
+          ${out.join('\n')}
+          </main></body></html>`;
+          fs.writeFileSync('site/shortcuts.html', html);
+          console.log('shortcuts.html', html.length, 'bytes');
+          EOF
+
+          # --- 시작 안내: 처음 열 때 한 번 (단축키 모드·저장·단축키 목록). 다시 보기는 ⌨ 옆 「?」 ---
+          cat > site/guide.js <<'EOF'
+          (function () {
+            var LS = 'hwppad.guide.v1';
+            var ua = navigator.userAgent;
+            var isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            var hasLock = !!(navigator.keyboard && navigator.keyboard.lock);
+            function seen() { try { return localStorage.getItem(LS) === 'off'; } catch (e) { return false; } }
+            function open() {
+              if (document.getElementById('hwppad-guide')) return;
+              var bg = document.createElement('div');
+              bg.id = 'hwppad-guide';
+              bg.setAttribute('style', 'position:fixed;inset:0;z-index:2147483001;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px');
+              var card = document.createElement('div');
+              card.setAttribute('style', 'background:#fff;color:#111827;max-width:520px;width:100%;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.4);padding:22px 24px;font:14px/1.6 -apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif');
+              var rows = [];
+              rows.push('<div style="font-size:19px;font-weight:700;margin-bottom:4px">서일 오피스에 오신 것을 환영합니다</div>');
+              rows.push('<div style="color:#6b7280;margin-bottom:14px">한글(HWP·HWPX) 문서를 어디서나 열고 고칩니다. 한글 2024 단축키를 그대로 씁니다.</div>');
+              if (hasLock && !isIOS) {
+                rows.push('<div style="border-left:4px solid #1d4ed8;background:#eff6ff;padding:10px 12px;border-radius:6px;margin:10px 0"><b>⌨ 단축키 모드부터 켜세요</b><br>'
+                  + 'Ctrl+N,T(표)·Ctrl+T·Ctrl+W 같은 조합은 브라우저가 먼저 가져갑니다. <b>Ctrl+G, Z</b> 또는 오른쪽 아래 ⌨ 버튼을 누르면 전체 화면이 되면서 모든 키가 한글처럼 동작합니다. '
+                  + '나올 때는 <b>Esc를 길게</b>. ⌨ 옆 「자동」을 켜 두면 다음부터 문서를 클릭할 때 저절로 켜집니다.</div>');
+              } else if (isIOS) {
+                rows.push('<div style="border-left:4px solid #1d4ed8;background:#eff6ff;padding:10px 12px;border-radius:6px;margin:10px 0"><b>아이패드</b><br>'
+                  + '외장 키보드의 Ctrl·Alt 단축키가 그대로 됩니다. 저장은 공유 시트 → 「파일에 저장」으로 Dropbox 폴더를 고르세요. 홈 화면에 추가하면 앱처럼 열립니다.</div>');
+              }
+              rows.push('<ul style="margin:10px 0 14px 18px;padding:0;color:#374151">'
+                + '<li><b>열기</b> Alt+O · <b>저장</b> Alt+S / Ctrl+S · <b>다른 이름으로</b> Alt+V · <b>인쇄</b> Alt+P</li>'
+                + '<li><b>표</b> Ctrl+N,T · <b>글자 모양</b> Alt+L · <b>문단 모양</b> Alt+T · <b>모양 복사</b> Alt+C · <b>문자표</b> Ctrl+F10</li>'
+                + '<li><b>명령 찾기</b> Ctrl+/ (명령 팔레트) · <b>단축키 전체 목록</b> 아래 버튼 또는 ⌨ 옆 「?」</li>'
+                + (isIOS ? '' : '<li><b>저장 폴더</b> 파일 메뉴 → 「저장 폴더 지정…」(PC는 Ctrl+S로 제자리 덮어쓰기)</li>')
+                + '</ul>');
+              rows.push('<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+                + '<button id="hwppad-guide-list" style="font:inherit;padding:8px 14px;border:1px solid #d1d5db;border-radius:8px;background:#f9fafb;cursor:pointer">단축키 전체 목록</button>'
+                + '<span style="flex:1"></span>'
+                + '<label style="display:flex;gap:6px;align-items:center;color:#6b7280;font-size:13px"><input type="checkbox" id="hwppad-guide-off" checked>다시 보지 않기</label>'
+                + '<button id="hwppad-guide-ok" style="font:inherit;padding:8px 16px;border:0;border-radius:8px;background:#1d4ed8;color:#fff;font-weight:600;cursor:pointer">시작하기</button>'
+                + '</div>');
+              card.innerHTML = rows.join('');
+              bg.appendChild(card);
+              document.body.appendChild(bg);
+              function close() {
+                var off = document.getElementById('hwppad-guide-off');
+                try { localStorage.setItem(LS, off && off.checked ? 'off' : 'on'); } catch (e) {}
+                bg.remove();
+              }
+              document.getElementById('hwppad-guide-ok').onclick = close;
+              document.getElementById('hwppad-guide-list').onclick = function () { window.open('shortcuts.html', '_blank'); };
+              bg.addEventListener('click', function (e) { if (e.target === bg) close(); });
+              bg.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); close(); } }, true);
+              document.getElementById('hwppad-guide-ok').focus();
+            }
+            function mountHelp() {
+              var wrap = document.getElementById('hwppad-keylock');
+              var help = document.createElement('button');
+              help.id = 'hwppad-help';
+              help.textContent = '?';
+              help.title = '시작 안내 · 단축키 목록';
+              help.setAttribute('style', 'font:13px/1 -apple-system,"Malgun Gothic",sans-serif;width:26px;height:26px;border:0;border-radius:50%;background:#1f2937;color:#fff;box-shadow:0 3px 12px rgba(0,0,0,.3);cursor:pointer');
+              help.onclick = open;
+              if (wrap) { wrap.insertBefore(help, wrap.firstChild); }
+              else {
+                help.style.position = 'fixed'; help.style.right = '12px'; help.style.bottom = '12px'; help.style.zIndex = '2147482999'; help.style.opacity = '.85';
+                document.body.appendChild(help);
+              }
+            }
+            function boot() {
+              // keylock.js(defer)가 먼저 버튼 묶음을 만든 뒤에 붙는다
+              setTimeout(function () {
+                mountHelp();
+                if (!seen()) setTimeout(open, 900);
+              }, 0);
+            }
+            if (document.body) boot(); else document.addEventListener('DOMContentLoaded', boot);
+          })();
+          EOF
+
           # --- index.html에 매니페스트·iOS 메타 삽입 (viewport는 viewport-fit=cover로 보정) ---
           node - <<'EOF'
           const fs = require('fs');
@@ -397,6 +524,7 @@ jobs:
             '<script src="debug.js"></script>',
             '<script src="install.js" defer></script>',
             '<script src="keylock.js" defer></script>',
+            '<script src="guide.js" defer></script>',
             `<!-- built from ${process.env.OPENOFFICE_REPO} @ ${new Date().toISOString()} by hwp-pad ${process.env.OPENOFFICE_SHA} -->`,
           ].join('\n    ');
           if (!/rel="manifest"/.test(html)) {
