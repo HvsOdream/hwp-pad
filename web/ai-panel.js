@@ -109,6 +109,13 @@
     '- 문체는 개조식 명사형 종결(…함, …임, …예정). 군더더기 없이.',
     '- 사용자가 고쳐 달라고 하면 해당 칸만 다시 보낸다.',
     '- remaining에는 아직 못 채운 칸과 이유를 짧게. 채팅 답은 한두 문장.',
+    '',
+    '[다시 쓰기 모드 — 메시지에 [모드] 다시 쓰기가 있을 때]',
+    '- 열린 문서는 지난번에 다 쓴 문서(예: 8월 회의록)의 사본입니다. 칸 지도에 이미 쓴 글이 모두 보입니다.',
+    '- 먼저 칸을 둘로 나눈다: 그대로 둘 것(학과·소속·위원 명단·양식의 고정 글) / 바꿀 것(날짜·회차·학기·안건·내용·사진 설명 등).',
+    '- 바꿀 것만 고친다. 날짜·회차처럼 일부만 바뀌면 find/replace로 그 글자만, 내용 칸은 text로 통째로 새로 쓴다.',
+    '- 지난 내용을 새 내용인 것처럼 남겨 두지 않는다. 새 정보가 없는 내용 칸은 비우지 말고 question으로 묻는다.',
+    '- 라벨 칸(회의 안건·위원 소속 같은 머리글)은 절대 고치지 않는다.',
   ].join('\n');
 
   var TOOL = {
@@ -130,7 +137,7 @@
   };
 
   // ---------- 상태 ----------
-  var S = { msgs: [], pendingTool: null, attach: [], busy: false };
+  var S = { msgs: [], pendingTool: null, attach: [], busy: false, mode: 'fill' };
   var ui = {};
 
   function build() {
@@ -263,6 +270,22 @@
       ui.log.appendChild(r0); return;
     }
     var c = counts(m), guide = m.tables.filter(function (t) { return t.guideBox; }).length;
+    if (S.mode === 'rewrite') {
+      say('ai', '지난 문서의 사본을 열었습니다 (' + fileName() + '). 원본은 그대로 있습니다.\n이번 메모·녹취·요청 공문을 넣거나, 날짜부터 말해 주세요. 그대로 둘 칸과 바꿀 칸은 제가 나눠 드릴게요.');
+      ui.log.appendChild(el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' }, [
+        el('button', { class: 'chip', text: '바꿀 칸부터 정리', onclick: function () { send('이번에 바꿔야 할 칸(날짜·회차·학기·안건·내용 등)과 그대로 둘 칸을 짧게 정리하고, 바꿀 것을 하나씩 물어봐 주세요.'); } }),
+      ]));
+      if (!isMock() && !ls(LS_KEY)) say('sys', '이 기기에 AI 키가 아직 없습니다. 관리자가 개발자 모드에서 넣어 주세요.');
+      return;
+    }
+    if (c.total <= 2 && m.tables.some(function (t) { return t.cells.some(function (x) { return x.kind === 'text'; }); })) {
+      say('ai', '이미 다 쓴 문서로 보입니다. 이 문서를 바탕으로 새로 쓸까요?\n원본은 그대로 두고 사본으로 엽니다. 날짜·내용처럼 바뀌는 칸만 고칩니다.');
+      ui.log.appendChild(el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' }, [
+        el('button', { class: 'chip', text: '이걸로 새로 쓰기', onclick: function () { rewrite(); } }),
+        el('button', { class: 'chip', text: '이 문서를 고치기', onclick: function () { S.mode = 'rewrite'; say('sys', '이 문서를 그대로 고칩니다. 저장하면 원본에 덮어씁니다.'); } }),
+      ]));
+      return;
+    }
     say('ai', '채울 칸 ' + c.total + '개를 찾았습니다 (빈칸 ' + c.empty + ', 자리표시 ' + c.ph + (c.guide ? ', 안내문 ' + c.guide : '') + ').\n메모·녹취·사진·요청 공문을 넣거나, 무엇에 대한 문서인지 말해 주세요.' + (guide ? '\n※ 「작성방법」 안내 상자는 채우지 않습니다. 제출 전에 지워 주세요.' : ''));
     var row = el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' });
     row.appendChild(el('button', { class: 'chip', text: '내 정보로 채울 수 있는 칸부터', onclick: function () { send('내 정보와 오늘 날짜로 채울 수 있는 칸부터 채워 주세요. 나머지는 하나씩 물어봐 주세요.'); } }));
@@ -334,7 +357,8 @@
 
   // ---------- 대화 ----------
   function docState(m) {
-    return '[칸 지도]\n' + window.SeoilFill.mapText(m) + '\n\n[문서 이름] ' + fileName() + '\n[내 정보] ' + profileText() + '\n[오늘] ' + new Date().toISOString().slice(0, 10);
+    var rw = S.mode === 'rewrite';
+    return (rw ? '[모드] 다시 쓰기\n' : '') + '[칸 지도' + (rw ? ' — 이미 쓴 글 포함' : '') + ']\n' + window.SeoilFill.mapText(m, { all: rw }) + '\n\n[문서 이름] ' + fileName() + '\n[내 정보] ' + profileText() + '\n[오늘] ' + new Date().toISOString().slice(0, 10);
   }
 
   function send(text) {
@@ -446,7 +470,14 @@
     ui.log.appendChild(box); ui.log.scrollTop = ui.log.scrollHeight;
   }
 
-  function reset(quiet) { S.msgs = []; S.pendingTool = null; ui.log.innerHTML = ''; base = { fp: null, total: 0 }; refreshForm(); if (!quiet) greet(); }
+  /** 지난 문서로 새로 쓰기: 사본을 새 이름으로 열고 다시 쓰기 모드로 */
+  function rewrite() {
+    if (!window.SeoilStart || !window.SeoilStart.forkCopy) { S.mode = 'rewrite'; reset(); return; }
+    window.SeoilStart.forkCopy().then(function () {
+      setTimeout(function () { openPanel(true); S.mode = 'rewrite'; reset(false, true); }, 300);
+    }, function (e) { say('err', '사본을 열지 못했습니다: ' + (e && e.message || e)); });
+  }
+  function reset(quiet, keepMode) { if (!keepMode) S.mode = 'fill'; S.msgs = []; S.pendingTool = null; ui.log.innerHTML = ''; base = { fp: null, total: 0 }; refreshForm(); if (!quiet) greet(); }
 
   // ---------- 시험 모드: 첫 자리표시 하나만 바꾸고 질문 하나 ----------
   var mockStep = 0;
@@ -460,6 +491,6 @@
     return new Promise(function (res) { setTimeout(function () { res(r); }, 500); });
   }
 
-  window.SeoilAI = { toggle: toggle, open: openPanel, reset: reset, send: send, addFiles: addFiles, refresh: refreshForm, state: S };
+  window.SeoilAI = { toggle: toggle, open: openPanel, reset: reset, send: send, addFiles: addFiles, refresh: refreshForm, rewrite: rewrite, state: S };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();

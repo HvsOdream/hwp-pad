@@ -196,6 +196,16 @@
     close();
     setTimeout(function () { if (window.SeoilAI) { window.SeoilAI.open(true); window.SeoilAI.reset(); } }, 300);
   }
+  /** 지금 문서의 사본을 새 이름(…_YYYYMMDD.hwp)으로 연다. 원본은 내 양식에 남긴다. */
+  async function forkCopy() {
+    var d = doc(); if (!d) throw new Error('열린 문서가 없습니다');
+    var orig = fileName() || '문서.hwp', bytes = d.exportHwp();
+    var t = new Date(), ymd = t.getFullYear() + String(t.getMonth() + 1).padStart(2, '0') + String(t.getDate()).padStart(2, '0');
+    var name = stem(orig).replace(/[_\s-]*(20\d{2}[.\-]?\d{2}[.\-]?\d{2}|\d{6,8})$/, '') + '_' + ymd + '.hwp';
+    rememberForm(orig.replace(/\.(hwpx|hml)$/i, '.hwp'), bytes);
+    await openBytes(bytes, name, '양식');
+    close();
+  }
   function pickForm() {
     pick('.hwp,.hwpx', async function (file) {
       try { busy(true); await openForm(await readBytes(file), file.name); busy(false); }
@@ -310,8 +320,12 @@
     var n = 0;
     m.tables.forEach(function (t) { if (!t.guideBox) t.cells.forEach(function (c) { if (c.kind === 'empty' || c.kind === 'ph' || c.kind === 'guide') n++; }); });
     m.paras.forEach(function (p) { if (p.kind === 'ph') n++; });
-    if (n >= 2 && cur.tag !== '양식' && !document.body.classList.contains('seoil-ai-open')) {
-      ui.barText.textContent = '빈칸·자리표시 ' + n + '개가 있는 문서입니다';
+    if (cur.tag === '양식' || document.body.classList.contains('seoil-ai-open')) return;
+    var filledForm = n < 2 && m.tables.length >= 2;
+    if (n >= 2 || filledForm) {
+      ui.bar.dataset.mode = filledForm ? 'rewrite' : 'fill';
+      ui.barText.textContent = filledForm ? '다 쓴 양식이네요. 이걸 바탕으로 새로 쓸까요?' : '빈칸·자리표시 ' + n + '개가 있는 문서입니다';
+      ui.barGo.textContent = filledForm ? '새로 쓰기' : 'AI로 채우기';
       ui.bar.classList.add('open');
     }
   }
@@ -372,8 +386,9 @@
 
     ui.barText = el('span', { class: 't' });
     ui.bar = el('div', { id: 'seoil-fill-bar' }, [ui.barText,
-      el('button', { type: 'button', class: 'go', text: 'AI로 채우기', onclick: function () {
+      ui.barGo = el('button', { type: 'button', class: 'go', text: 'AI로 채우기', onclick: function () {
         ui.bar.classList.remove('open');
+        if (ui.bar.dataset.mode === 'rewrite' && window.SeoilAI && window.SeoilAI.rewrite) { window.SeoilAI.rewrite(); return; }
         var d = doc(); if (d) { try { rememberForm(fileName() || '양식.hwp', d.exportHwp()); cur.tag = '양식'; } catch (e) {} }
         if (window.SeoilAI) { window.SeoilAI.open(true); window.SeoilAI.reset(); }
       } }),
@@ -401,6 +416,6 @@
     })();
   }
 
-  window.SeoilStart = { open: open, close: close, pickForm: pickForm, openForm: openForm, newDoc: newDoc };
+  window.SeoilStart = { open: open, close: close, pickForm: pickForm, openForm: openForm, newDoc: newDoc, forkCopy: forkCopy };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();
