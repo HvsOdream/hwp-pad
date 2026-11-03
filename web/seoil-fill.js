@@ -112,7 +112,7 @@
       var rows = [];
       t.cells.forEach(function (c) {
         if (c.kind === 'box') return;
-        if (c.kind === 'text' && !opt.all) return;
+        if (c.kind === 'text' && !opt.all && t.cells.length > 40) return;
         var tag = c.kind === 'empty' ? '빈칸' : c.kind === 'ph' ? '자리표시' : c.kind === 'guide' ? '안내문(지우고 씀)' : '글';
         rows.push('  ' + c.id + ' [' + (c.label || '?') + '] ' + tag + (c.kind !== 'empty' ? ': ' + c.text.replace(/\n/g, ' / ').slice(0, 140) : ''));
       });
@@ -152,23 +152,28 @@
     }
   }
   function replaceInCell(doc, c, find, rep) {
-    var sec = c.t.sec, para = c.t.para, n = doc.getCellParagraphCountByPath(sec, para, P(c.path));
+    var hit = false, sec = c.t.sec, para = c.t.para, n = doc.getCellParagraphCountByPath(sec, para, P(c.path));
     for (var i = 0; i < n; i++) {
       var pi = withPara(c.path, i), len = doc.getCellParagraphLengthByPath(sec, para, P(pi));
       if (!len) continue;
-      var tx = String(doc.getTextInCellByPath(sec, para, P(pi), 0, len)), at = tx.indexOf(find);
-      if (at < 0) continue;
-      doc.deleteTextInCellByPath(sec, para, P(pi), at, find.length);
-      if (rep) doc.insertTextInCellByPath(sec, para, P(pi), at, rep);
-      return true;
+      var tx = String(doc.getTextInCellByPath(sec, para, P(pi), 0, len)), at = tx.lastIndexOf(find);
+      while (at >= 0) {
+        doc.deleteTextInCellByPath(sec, para, P(pi), at, find.length);
+        if (rep) doc.insertTextInCellByPath(sec, para, P(pi), at, rep);
+        hit = true;
+        at = at > 0 ? tx.lastIndexOf(find, at - 1) : -1;
+      }
     }
-    return false;
+    return hit;
   }
   function replaceInPara(doc, p, find, rep) {
-    var len = doc.getParagraphLength(p.sec, p.para), tx = String(doc.getTextRange(p.sec, p.para, 0, len)), at = tx.indexOf(find);
-    if (at < 0) return false;
-    doc.replaceText(p.sec, p.para, at, find.length, rep || '');
-    return true;
+    var len = doc.getParagraphLength(p.sec, p.para), tx = String(doc.getTextRange(p.sec, p.para, 0, len)), at = tx.lastIndexOf(find), hit = false;
+    while (at >= 0) {
+      doc.replaceText(p.sec, p.para, at, find.length, rep || '');
+      hit = true;
+      at = at > 0 ? tx.lastIndexOf(find, at - 1) : -1;
+    }
+    return hit;
   }
   function fillRows(doc, m, op, log) {
     var t = m.tables.filter(function (x) { return x.id === op.rows; })[0];
@@ -180,7 +185,15 @@
       var c0 = t.path[0].controlIndex;
       for (var a = 0; a < need; a++) doc.insertTableRow(t.sec, t.para, c0, t.rows - 1 + a, true);
       log.push(t.id + ' 표에 ' + need + '행을 더했습니다');
-      var fresh = scan(doc); t = fresh.tables.filter(function (x) { return x.id === op.rows; })[0]; m.tables = fresh.tables;
+      var fresh = scan(doc), nt = fresh.tables.filter(function (x) { return x.id === op.rows; })[0];
+      // 새 행: 위 행의 고정 글자(라벨: 위원 소속·직위 같은 칸)는 그대로 옮겨 적는다
+      var model = t.cells.filter(function (c) { return c.row === t.rows - 1; });
+      nt.cells.forEach(function (c) {
+        if (c.row < t.rows) return;
+        var up = model.filter(function (u) { return u.col === c.col; })[0];
+        if (up && up.kind === 'text' && up.text.trim()) { writeCell(doc, c, up.text); c.text = up.text; c.kind = 'text'; }
+      });
+      t = nt; m.tables = fresh.tables; m.paras = fresh.paras;
     }
     data.forEach(function (row, ri) {
       var r = start + ri;
