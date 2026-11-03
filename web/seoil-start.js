@@ -1,57 +1,88 @@
-// 서일 오피스 — 시작 화면 + 안전 영역 (2026-11-03, 첨부 양식 중심으로 개편).
-// 앱을 켜면 빈 문서 대신 "무엇을 채울까요?"를 먼저 보여 준다. 핵심 경로는 하나:
-//   공문에 붙어 온 양식(hwp·hwpx)을 고른다 → 편집기에 연다(원본 파일은 덮어쓰지 않음) → AI 패널이 칸을 채운다.
-// 한 번 쓴 양식은 이 기기의 "최근 양식"(IndexedDB)에 남아 다음엔 바로 고른다. 부서(혁신·교무·산학)는 파일 이름으로 짐작.
-// 공문(업무협조전) 회신은 그룹웨어가 하므로 여기서 다루지 않는다.
+// 서일 오피스 — 홈 화면(C안) + 안전 영역 (2026-11-03).
+// 앱을 켜면 전체 화면 홈: 검색 · 입구 셋(새 문서 / 양식 채우기 / 파일 열기) · 내 양식 · 최근 문서.
+//  - 내 양식: 「양식 채우기」로 한 번 연 양식(원본 바이트)이 이 기기에 남고, 파일 이름으로 혁신·교무·산학·기타를 짐작.
+//    부서는 바꿀 수 있고 ×로 지울 수 있다. 처음엔 비어 있다.
+//  - 최근 문서: 작업 중인 문서를 이 기기에 가끔 저장해 두었다가(30초마다, 바뀐 경우만) 다시 연다 — "이어서 쓰기".
+//  - 양식이 아닌 파일을 열어도 빈칸이 있으면 위에 「AI로 채우기」 띠가 뜬다.
+// 모든 기록은 IndexedDB(이 기기에만). 원본 파일은 덮어쓰지 않는다(양식·최근 문서는 저장 핸들 없이 연다).
 (function () {
   'use strict';
 
-  // ---------- 안전 영역: 아이패드 앱·홈 화면 모드에서 상태 막대/홈 바와 겹치지 않게 ----------
   var css = [
+    // 안전 영역: 아이패드 앱·홈 화면 모드에서 상태 막대/홈 바와 겹치지 않게
     'html,body{height:100vh;height:100dvh}',
     '#studio-root{box-sizing:border-box;height:100vh!important;height:100dvh!important;padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);padding-bottom:env(safe-area-inset-bottom)}',
     '#seoil-ai{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}',
     '#seoil-ai-fab{bottom:calc(64px + env(safe-area-inset-bottom))!important;right:calc(14px + env(safe-area-inset-right))!important}',
     '#hwppad-keylock{bottom:calc(12px + env(safe-area-inset-bottom))!important}',
-    // 시작 화면
-    '#seoil-start{position:fixed;inset:0;z-index:2147482500;background:rgba(28,31,35,.42);display:none;align-items:center;justify-content:center;padding:calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));font:14px/1.6 "Noto Sans KR",system-ui,-apple-system,sans-serif;color:#1C1F23}',
-    '#seoil-start.open{display:flex}',
-    '#seoil-start *{box-sizing:border-box}',
-    '#seoil-start .sheet{background:#fff;border-radius:16px;width:min(580px,100%);max-height:100%;overflow:auto;padding:22px;box-shadow:0 12px 40px rgba(0,0,0,.18)}',
-    '#seoil-start h2{font-size:19px;margin:0 0 2px}',
-    '#seoil-start .sub{color:#5F6670;font-size:13px;margin-bottom:16px}',
-    '#seoil-start .main{width:100%;text-align:left;border:0;border-radius:12px;background:#2F5BEA;color:#fff;padding:16px 18px;cursor:pointer;font:inherit;display:flex;flex-direction:column;gap:2px}',
-    '#seoil-start .main b{font-size:16px}#seoil-start .main span{font-size:13px;opacity:.9}',
-    '#seoil-start .sec{margin-top:16px;font-size:12px;color:#5F6670;font-weight:700}',
-    '#seoil-start .tabs{display:flex;gap:6px;margin:8px 0;flex-wrap:wrap}',
-    '#seoil-start .tab{font:inherit;font-size:12px;border:1px solid #D9DCE1;background:#fff;border-radius:14px;padding:3px 10px;cursor:pointer}#seoil-start .tab.on{background:#1C1F23;color:#fff;border-color:#1C1F23}',
-    '#seoil-start .list{display:flex;flex-direction:column;gap:6px}',
-    '#seoil-start .item{display:flex;align-items:center;gap:10px;border:1px solid #ECEEF1;border-radius:10px;padding:8px 12px;cursor:pointer;background:#fff;font:inherit;text-align:left;width:100%}',
-    '#seoil-start .item:hover{border-color:#2F5BEA}#seoil-start .item b{flex:1;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-    '#seoil-start .item small{font-size:11px;color:#8A9099;white-space:nowrap}',
-    '#seoil-start .dep{font-size:11px;border-radius:8px;padding:0 6px;background:#F4F5F7;color:#5F6670;white-space:nowrap}',
-    '#seoil-start .empty{font-size:12px;color:#8A9099;padding:6px 2px}',
-    '#seoil-start .tip{margin-top:14px;font-size:12px;color:#5F6670;background:#F4F5F7;border-radius:10px;padding:10px 12px}',
-    '#seoil-start .foot{display:flex;justify-content:flex-end;gap:8px;align-items:center;margin-top:12px;font-size:12px;color:#8A9099}',
-    '#seoil-start .link{border:0;background:none;font:inherit;color:#5F6670;text-decoration:underline;cursor:pointer;padding:4px}',
-    '#seoil-start .msg{margin-top:12px;font-size:13px;color:#B42318}',
-    // 양식이 열리면 위에 뜨는 띠
+    'body.seoil-home-open #seoil-ai-fab,body.seoil-home-open #seoil-home-btn,body.seoil-home-open #hwppad-keylock,body.seoil-home-open #hwppad-help,body.seoil-home-open #hwppad-install{display:none!important}',
+    // 홈
+    '#seoil-home{position:fixed;inset:0;z-index:900;background:#fff;display:none;overflow:auto;font:14px/1.6 "Noto Sans KR",system-ui,-apple-system,sans-serif;color:#1C1F23;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}',
+    '#seoil-home.open{display:block}',
+    '#seoil-home *{box-sizing:border-box}',
+    '#seoil-home .top{display:flex;align-items:center;gap:12px;padding:16px 28px}',
+    '#seoil-home .logo{width:28px;height:28px;border-radius:7px;background:#1C1F23;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}',
+    '#seoil-home .me{font:inherit;font-size:13px;height:40px;padding:0 12px;border:0;background:#EEF2FD;border-radius:10px;color:#2F5BEA;cursor:pointer}',
+    '#seoil-home .back{font:inherit;font-size:13px;height:40px;padding:0 12px;border:1px solid #D5D9DF;background:#fff;border-radius:10px;color:#1C1F23;cursor:pointer}',
+    '#seoil-home main{max-width:1080px;margin:0 auto;padding:40px 24px 56px;display:flex;flex-direction:column;gap:28px}',
+    '#seoil-home h1{margin:0;font-size:30px;font-weight:700;letter-spacing:-.5px;text-align:center}',
+    '#seoil-home .search{width:100%;max-width:720px;margin:0 auto;display:flex;align-items:center;gap:12px;border:2px solid #1C1F23;border-radius:14px;padding:0 18px;height:58px;background:#fff}',
+    '#seoil-home .search input{border:0;font:inherit;font-size:17px;flex:1;outline:none;color:#1C1F23;background:transparent;min-width:0}',
+    '#seoil-home .doors{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}',
+    '#seoil-home .door{font:inherit;text-align:left;border:1px solid #E3E6EA;border-radius:16px;background:#fff;padding:22px;display:flex;flex-direction:column;gap:10px;cursor:pointer;min-height:168px;color:#1C1F23}',
+    '#seoil-home .door:hover{border-color:#2F5BEA}',
+    '#seoil-home .door.main{border:0;background:#2F5BEA;color:#fff}',
+    '#seoil-home .door .ic{width:44px;height:44px;border-radius:12px;background:#F1F2F4;display:flex;align-items:center;justify-content:center}',
+    '#seoil-home .door.main .ic{background:rgba(255,255,255,.16)}',
+    '#seoil-home .door b{font-size:18px}',
+    '#seoil-home .door .d{font-size:13px;color:#5F6670;line-height:1.55}',
+    '#seoil-home .door.main .d,#seoil-home .door.main .k{color:#DCE4FD}',
+    '#seoil-home .door .k{margin-top:auto;font-size:12px;color:#6B7280}',
+    '#seoil-home .cols{display:flex;flex-wrap:wrap;gap:20px;margin-top:8px}',
+    '#seoil-home .col{min-width:0;display:flex;flex-direction:column;gap:12px}',
+    '#seoil-home h2{margin:0;font-size:16px;font-weight:700}',
+    '#seoil-home .tabs{display:flex;flex-wrap:wrap;gap:6px}',
+    '#seoil-home .tab{font:inherit;font-size:12px;height:32px;padding:0 12px;border-radius:16px;border:1px solid #D5D9DF;background:#fff;color:#1C1F23;cursor:pointer}',
+    '#seoil-home .tab.on{border-color:#1C1F23;background:#1C1F23;color:#fff}',
+    '#seoil-home .row{display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;border:1px solid #EEF0F3;border-radius:10px;min-height:52px}',
+    '#seoil-home .row select{font:inherit;font-size:12px;font-weight:700;height:28px;padding:0 4px;border-radius:6px;border:0;cursor:pointer}',
+    '#seoil-home .row .nm{flex:1;min-width:0;font:inherit;font-size:14px;color:#1C1F23;text-align:left;background:none;border:0;padding:6px 0;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '#seoil-home .row .nm:hover{color:#2F5BEA}',
+    '#seoil-home .when{font-size:12px;color:#6B7280;flex:none}',
+    '#seoil-home .x{width:36px;height:36px;border:0;background:transparent;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none}',
+    '#seoil-home .x:hover{background:#F4F5F7}',
+    '#seoil-home .empty{border:2px dashed #D5D9DF;border-radius:12px;padding:28px 20px;text-align:center;font-size:13px;color:#5F6670;line-height:1.6}',
+    '#seoil-home .rc{display:flex;align-items:center;gap:6px;border:1px solid #EEF0F3;border-radius:10px;background:#FAFAFB;padding:4px 4px 4px 0}',
+    '#seoil-home .rc .open{flex:1;min-width:0;font:inherit;text-align:left;border:0;background:none;padding:8px 6px 8px 14px;cursor:pointer;display:flex;flex-direction:column;gap:4px;color:#1C1F23}',
+    '#seoil-home .rc .open:hover b{color:#2F5BEA}',
+    '#seoil-home .rc b{font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}',
+    '#seoil-home .rc .tag{font-size:11px;color:#5F6670;border:1px solid #D5D9DF;border-radius:6px;padding:0 6px;margin-right:6px;font-weight:400}',
+    '#seoil-home .rc .meta{font-size:12px;color:#5F6670}',
+    '#seoil-home .msg{font-size:13px;color:#B42318;text-align:center;min-height:1px}',
+    '#seoil-home .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}',
+    '#seoil-home.drag main{outline:3px dashed #2F5BEA;outline-offset:8px;border-radius:16px}',
+    // 편집 중 홈으로 돌아가는 버튼
+    '#seoil-home-btn{position:fixed;right:calc(14px + env(safe-area-inset-right));bottom:calc(112px + env(safe-area-inset-bottom));z-index:2147481998;font:600 13px "Noto Sans KR",system-ui,sans-serif;padding:9px 14px;border:1px solid #D5D9DF;border-radius:20px;background:#fff;color:#1C1F23;box-shadow:0 4px 14px rgba(0,0,0,.08);cursor:pointer}',
+    'body.seoil-ai-open #seoil-home-btn{display:none}',
+    // 빈칸이 있는 파일을 열면 위에 뜨는 띠
     '#seoil-fill-bar{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top));z-index:2147482400;background:#1C1F23;color:#fff;border-radius:12px;padding:8px 10px 8px 16px;display:none;align-items:center;gap:12px;font:13px/1.5 "Noto Sans KR",system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:calc(100vw - 32px)}',
     '#seoil-fill-bar.open{display:flex}',
     '#seoil-fill-bar button{font:inherit;border:0;border-radius:8px;padding:6px 12px;cursor:pointer;white-space:nowrap}',
     '#seoil-fill-bar .go{background:#2F5BEA;color:#fff}#seoil-fill-bar .no{background:transparent;color:#C9CDD3}',
     '#seoil-fill-bar .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}',
-    'body.seoil-ai-open #seoil-fill-bar{display:none}',
+    'body.seoil-ai-open #seoil-fill-bar,body.seoil-home-open #seoil-fill-bar{display:none}',
   ].join('\n');
 
-  var DB = 'seoil-office', STORE = 'kv', RECENT = 'forms.recent', MAX_RECENT = 20;
-  var isApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-  var DEPTS = [
-    ['혁신', /혁신|AID|AI·DX|정책과제|교재개발|동아리|성과공유|RISE|부트캠프|기자재/],
-    ['교무', /강사|강의|교육과정|학사|교과|수업|출석|성적|재임용|교원|융합코스|학과 운영/],
-    ['산학', /산학|현장실습|인프라|기업|기술|창업|가족회사|LINC|취업/],
+  var DB = 'seoil-office', STORE = 'kv', FORMS = 'forms.mine', RECENT = 'docs.recent', MAX_FORMS = 40, MAX_RECENT = 8, MAX_BYTES = 8 * 1024 * 1024;
+  var DEPTS = ['혁신', '교무', '산학', '기타'];
+  var CHIP = { '혁신': ['#EEF2FD', '#1E44C4'], '교무': ['#FFF1E6', '#9A4A08'], '산학': ['#E8F5EE', '#17683F'], '기타': ['#F1F2F4', '#4B5260'] };
+  var GUESS = [
+    ['혁신', /혁신|AID|AI·DX|DX|정책과제|교재개발|동아리|성과공유|RISE|부트캠프|기자재|비품/],
+    ['교무', /강사|강의|교육과정|학사|교과|수업|출석|성적|재임용|교원|융합코스|학과 운영|휴보강/],
+    ['산학', /산학|현장실습|인프라|기업|기술이전|창업|가족회사|LINC|취업|수탁/],
   ];
-  function deptOf(name) { for (var i = 0; i < DEPTS.length; i++) if (DEPTS[i][1].test(name)) return DEPTS[i][0]; return '기타'; }
+  function guessDept(name) { for (var i = 0; i < GUESS.length; i++) if (GUESS[i][1].test(name)) return GUESS[i][0]; return '기타'; }
+  var isApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
   // ---------- 작은 도구 ----------
   function el(tag, attrs, kids) {
@@ -60,29 +91,31 @@
       if (k === 'style') e.style.cssText = attrs[k];
       else if (k.slice(0, 2) === 'on') e.addEventListener(k.slice(2), attrs[k]);
       else if (k === 'text') e.textContent = attrs[k];
+      else if (k === 'html') e.innerHTML = attrs[k];
+      else if (k === 'value') e.value = attrs[k];
       else e.setAttribute(k, attrs[k]);
     });
     (kids || []).forEach(function (c) { if (c != null) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
     return e;
   }
+  function svg(path, color) { return el('span', { 'aria-hidden': 'true', style: 'display:inline-flex', html: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="' + (color || '#1C1F23') + '" stroke-width="1.8">' + path + '</svg>' }); }
   function bridge() { return window.rhwpStudio && window.rhwpStudio.ai; }
   function doc() { var b = bridge(); return b && b.doc(); }
-  function readBytes(file) {
-    return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(new Uint8Array(r.result)); }; r.onerror = rej; r.readAsArrayBuffer(file); });
-  }
+  function fileName() { var b = bridge(); return (b && b.fileName && b.fileName()) || ''; }
+  function readBytes(file) { return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(new Uint8Array(r.result)); }; r.onerror = rej; r.readAsArrayBuffer(file); }); }
+  function stem(n) { return String(n || '').replace(/\.(hwpx?|hml)$/i, ''); }
   function ago(iso) {
-    var d = (Date.now() - new Date(iso).getTime()) / 86400000;
-    return d < 1 ? '오늘' : d < 2 ? '어제' : d < 30 ? Math.floor(d) + '일 전' : new Date(iso).toISOString().slice(0, 10);
+    var t = new Date(iso), d = (Date.now() - t.getTime()) / 86400000;
+    if (d < 1 && t.getDate() === new Date().getDate()) return '오늘';
+    return d < 2 ? '어제' : d < 14 ? Math.floor(d) + '일 전' : (t.getMonth() + 1) + '월 ' + t.getDate() + '일';
   }
+  function norm(s) { return String(s || '').replace(/\s/g, '').toLowerCase(); }
 
-  // ---------- 최근 양식 (IndexedDB, 이 기기에만) ----------
+  // ---------- IndexedDB (이 기기에만) ----------
   function idb() {
     return new Promise(function (res, rej) {
-      try {
-        var q = indexedDB.open(DB, 1);
-        q.onupgradeneeded = function () { q.result.createObjectStore(STORE); };
-        q.onsuccess = function () { res(q.result); }; q.onerror = function () { rej(q.error); };
-      } catch (e) { rej(e); }
+      try { var q = indexedDB.open(DB, 1); q.onupgradeneeded = function () { q.result.createObjectStore(STORE); }; q.onsuccess = function () { res(q.result); }; q.onerror = function () { rej(q.error); }; }
+      catch (e) { rej(e); }
     });
   }
   function kv(op, key, val) {
@@ -94,16 +127,48 @@
       });
     }).catch(function () { return null; });
   }
-  function recent() { return kv('get', RECENT).then(function (l) { return Array.isArray(l) ? l : []; }); }
-  function remember(name, bytes) {
-    return recent().then(function (l) {
+  function list(key) { return kv('get', key).then(function (l) { return Array.isArray(l) ? l : []; }); }
+  function update(key, fn) { return list(key).then(function (l) { var n = fn(l); return kv('put', key, n).then(function () { return n; }); }); }
+
+  function rememberForm(name, bytes) {
+    return update(FORMS, function (l) {
+      var old = l.filter(function (x) { return x.name === name; })[0];
       l = l.filter(function (x) { return x.name !== name; });
-      l.unshift({ name: name, bytes: bytes, dept: deptOf(name), at: new Date().toISOString() });
-      return kv('put', RECENT, l.slice(0, MAX_RECENT));
+      l.unshift({ name: name, bytes: bytes, dept: old ? old.dept : guessDept(name), at: new Date().toISOString() });
+      return l.slice(0, MAX_FORMS);
     });
   }
 
-  // ---------- 양식 열기 ----------
+  // ---------- 최근 문서: 작업 중인 문서를 가끔 이 기기에 저장 ----------
+  var cur = { doc: null, tag: '파일', name: '', sig: '' };
+  function progressOf(d) {
+    if (!window.SeoilFill) return '';
+    try {
+      var m = window.SeoilFill.scan(d), left = 0;
+      m.tables.forEach(function (t) { if (!t.guideBox) t.cells.forEach(function (c) { if (c.kind === 'empty' || c.kind === 'ph' || c.kind === 'guide') left++; }); });
+      m.paras.forEach(function (p) { if (p.kind === 'ph') left++; });
+      return left ? '빈칸 ' + left + '개 남음' : '';
+    } catch (e) { return ''; }
+  }
+  function snapshot(force) {
+    var d = doc(); if (!d || d !== cur.doc) return Promise.resolve();
+    var bytes;
+    try { if (!force && d.isEmptyDocument && d.isEmptyDocument()) return Promise.resolve(); bytes = d.exportHwp(); } catch (e) { return Promise.resolve(); }
+    if (!bytes || bytes.length > MAX_BYTES) return Promise.resolve();
+    var sig = bytes.length + ':' + bytes[bytes.length >> 1] + ':' + bytes[bytes.length - 7];
+    if (!force && sig === cur.sig) return Promise.resolve();
+    cur.sig = sig;
+    var name = fileName() || cur.name || '새 문서.hwp', pages = 0;
+    try { pages = d.pageCount(); } catch (e) {}
+    var meta = [pages ? pages + '쪽' : '', cur.tag === '양식' ? progressOf(d) : ''].filter(Boolean).join(' · ');
+    return update(RECENT, function (l) {
+      l = l.filter(function (x) { return x.name !== name; });
+      l.unshift({ name: name, tag: cur.tag, bytes: bytes, meta: meta, at: new Date().toISOString() });
+      return l.slice(0, MAX_RECENT);
+    });
+  }
+
+  // ---------- 열기 ----------
   function waitDocChange(prev, ms) {
     var t0 = Date.now();
     return new Promise(function (res, rej) {
@@ -115,121 +180,227 @@
       })();
     });
   }
-  /** 양식 바이트를 새 문서로 연다(저장 핸들 없음 → 원본 파일은 그대로). 수정 중인 문서가 있으면 편집기가 저장 여부를 묻는다. */
-  async function openForm(bytes, name) {
+  var nextTag = null;
+  async function openBytes(bytes, name, tag) {
     var open = window.rhwpStudio && window.rhwpStudio.openBytes;
     if (typeof open !== 'function') throw new Error('편집기가 아직 준비되지 않았습니다');
+    await snapshot(false);
     var prev = doc();
-    open(bytes.slice(), name, null);
+    nextTag = tag;
+    open(bytes.slice(), name, null); // 저장 핸들 없음 → 원본은 그대로, Ctrl+S는 새 파일로 저장
     await waitDocChange(prev);
-    remember(name, bytes);
-    setTimeout(function () {
-      if (window.SeoilAI) { window.SeoilAI.open(true); window.SeoilAI.reset(); }
-    }, 300);
+  }
+  async function openForm(bytes, name) {
+    await openBytes(bytes, name, '양식');
+    rememberForm(name, bytes);
+    close();
+    setTimeout(function () { if (window.SeoilAI) { window.SeoilAI.open(true); window.SeoilAI.reset(); } }, 300);
   }
   function pickForm() {
     pick('.hwp,.hwpx', async function (file) {
-      try { busy(true); await openForm(await readBytes(file), file.name); busy(false); close(); }
-      catch (e) { busy(false, '열지 못했습니다: ' + (e.message || e)); open(); }
+      try { busy(true); await openForm(await readBytes(file), file.name); busy(false); }
+      catch (e) { busy(false, '열지 못했습니다: ' + (e.message || e)); }
     });
   }
-
-  // ---------- 시작 화면 ----------
-  var ui = {}, tab = '전체';
+  function newDoc() {
+    snapshot(false);
+    nextTag = '새 문서';
+    var it = document.querySelector('[data-cmd="file:new-doc"]');
+    close();
+    if (it) { it.classList.remove('disabled'); it.click(); return; }
+    var D = doc() && doc().constructor;
+    if (D && D.createEmpty) { try { window.rhwpStudio.openBytes(D.createEmpty().exportHwp(), '새 문서.hwp', null); } catch (e) {} }
+  }
+  function openFile() {
+    snapshot(false);
+    nextTag = '파일';
+    var it = document.querySelector('[data-cmd="file:open"]');
+    if (it) { close(); it.click(); return; }
+    pick('.hwp,.hwpx,.hml', async function (file) { await openBytes(await readBytes(file), file.name, '파일'); close(); });
+  }
   function pick(accept, cb) {
     var inp = el('input', { type: 'file', accept: accept, style: 'display:none' });
     inp.addEventListener('change', function () { var f = inp.files && inp.files[0]; inp.remove(); if (f) cb(f); });
     document.body.appendChild(inp); inp.click();
   }
-  function busy(on, t) { if (!ui.sheet) return; ui.sheet.style.opacity = on ? '.6' : '1'; ui.sheet.style.pointerEvents = on ? 'none' : ''; ui.msg.textContent = t || ''; }
 
-  function drawList() {
-    recent().then(function (l) {
-      ui.tabs.innerHTML = ''; ui.list.innerHTML = '';
-      ['전체', '혁신', '교무', '산학', '기타'].forEach(function (t) {
-        var n = t === '전체' ? l.length : l.filter(function (x) { return x.dept === t; }).length;
+  // ---------- 홈 그리기 ----------
+  var ui = {}, S = { tab: '전체', q: '' };
+  function busy(on, t) { ui.main.style.opacity = on ? '.6' : '1'; ui.main.style.pointerEvents = on ? 'none' : ''; ui.msg.textContent = t || ''; }
+
+  function door(cls, icon, iconColor, title, desc, key, onclick) {
+    return el('button', { type: 'button', class: 'door' + (cls ? ' ' + cls : ''), onclick: onclick }, [
+      el('span', { class: 'ic' }, [svg(icon, iconColor)]), el('b', { text: title }), el('span', { class: 'd', text: desc }), el('span', { class: 'k', text: key })]);
+  }
+
+  function drawForms() {
+    list(FORMS).then(function (forms) {
+      var q = norm(S.q);
+      ui.tabs.innerHTML = '';
+      ['전체'].concat(DEPTS).forEach(function (t) {
+        var n = t === '전체' ? forms.length : forms.filter(function (f) { return f.dept === t; }).length;
         if (t !== '전체' && !n) return;
-        ui.tabs.appendChild(el('button', { class: 'tab' + (tab === t ? ' on' : ''), text: t + (n ? ' ' + n : ''), onclick: function () { tab = t; drawList(); } }));
+        ui.tabs.appendChild(el('button', { type: 'button', role: 'tab', 'aria-selected': String(S.tab === t), class: 'tab' + (S.tab === t ? ' on' : ''), text: t + ' ' + n, onclick: function () { S.tab = t; drawForms(); } }));
       });
-      var show = tab === '전체' ? l : l.filter(function (x) { return x.dept === tab; });
-      if (!show.length) { ui.list.appendChild(el('div', { class: 'empty', text: '아직 없습니다. 위 버튼으로 양식을 한 번 열면 여기에 남습니다.' })); return; }
-      show.forEach(function (x) {
-        ui.list.appendChild(el('button', { class: 'item', title: x.name, onclick: async function () {
-          try { busy(true); await openForm(x.bytes, x.name); busy(false); close(); } catch (e) { busy(false, e.message || String(e)); }
-        } }, [el('span', { class: 'dep', text: x.dept }), el('b', { text: x.name.replace(/\.(hwpx?|hml)$/i, '') }), el('small', { text: ago(x.at) })]));
+      if (S.tab !== '전체' && !forms.some(function (f) { return f.dept === S.tab; })) S.tab = '전체';
+      var shown = forms.filter(function (f) { return (S.tab === '전체' || f.dept === S.tab) && (!q || norm(f.name).indexOf(q) >= 0); });
+      ui.forms.innerHTML = '';
+      if (!forms.length) { ui.forms.appendChild(el('div', { class: 'empty', text: '아직 양식이 없습니다. 「양식 채우기」로 한 번 열면 여기에 부서별로 남습니다.' })); return; }
+      if (!shown.length) { ui.forms.appendChild(el('div', { class: 'empty', text: '찾는 양식이 없습니다.' })); return; }
+      shown.forEach(function (f) {
+        var sel = el('select', { 'aria-label': '부서 바꾸기', style: 'background:' + CHIP[f.dept][0] + ';color:' + CHIP[f.dept][1], onchange: function () {
+          var v = sel.value; update(FORMS, function (l) { l.forEach(function (x) { if (x.name === f.name) x.dept = v; }); return l; }).then(drawForms);
+        } }, DEPTS.map(function (d) { var o = el('option', { value: d, text: d }); if (d === f.dept) o.selected = true; return o; }));
+        ui.forms.appendChild(el('div', { class: 'row' }, [
+          sel,
+          el('button', { type: 'button', class: 'nm', title: f.name, text: stem(f.name), onclick: async function () {
+            try { busy(true); await openForm(f.bytes, f.name); busy(false); } catch (e) { busy(false, e.message || String(e)); }
+          } }),
+          el('span', { class: 'when', text: ago(f.at) }),
+          el('button', { type: 'button', class: 'x', 'aria-label': '내 양식에서 지우기', title: '내 양식에서 지우기', onclick: function () {
+            update(FORMS, function (l) { return l.filter(function (x) { return x.name !== f.name; }); }).then(drawForms);
+          } }, [svg('<path d="M6 6l12 12M18 6L6 18"/>', '#6B7280')]),
+        ]));
       });
     });
   }
 
-  function openFileMenu() {
-    var it = document.querySelector('[data-cmd="file:open"]');
-    if (it) { it.click(); return; }
-    pick('.hwp,.hwpx,.hml', async function (file) { window.rhwpStudio.openBytes(await readBytes(file), file.name, null); });
+  function drawRecent() {
+    list(RECENT).then(function (docs) {
+      var q = norm(S.q);
+      var shown = docs.filter(function (d) { return !q || norm(d.name).indexOf(q) >= 0; });
+      ui.recent.innerHTML = '';
+      if (!docs.length) { ui.recent.appendChild(el('div', { class: 'empty', text: '작업한 문서가 여기에 남습니다. 이 기기에만 저장됩니다.' })); return; }
+      if (!shown.length) { ui.recent.appendChild(el('div', { class: 'empty', text: '찾는 문서가 없습니다.' })); return; }
+      shown.forEach(function (d) {
+        ui.recent.appendChild(el('div', { class: 'rc' }, [
+          el('button', { type: 'button', class: 'open', title: d.name, onclick: async function () {
+            try { busy(true); await openBytes(d.bytes, d.name, d.tag); busy(false); close(); } catch (e) { busy(false, e.message || String(e)); }
+          } }, [
+            el('b', {}, [el('span', { class: 'tag', text: d.tag }), stem(d.name)]),
+            el('span', { class: 'meta', text: [ago(d.at), d.meta].filter(Boolean).join(' · ') }),
+          ]),
+          el('button', { type: 'button', class: 'x', 'aria-label': '최근 문서에서 지우기', title: '최근 문서에서 지우기', onclick: function () {
+            update(RECENT, function (l) { return l.filter(function (x) { return x.name !== d.name; }); }).then(drawRecent);
+          } }, [svg('<path d="M6 6l12 12M18 6L6 18"/>', '#6B7280')]),
+        ]));
+      });
+    });
   }
 
-  function open() { drawList(); ui.root.classList.add('open'); }
-  function close() { ui.root.classList.remove('open'); }
+  function open() {
+    snapshot(false).then(drawRecent);
+    drawForms(); drawRecent();
+    ui.back.style.display = doc() && cur.doc && fileName() ? '' : 'none';
+    ui.root.classList.add('open'); document.body.classList.add('seoil-home-open');
+    ui.bar.classList.remove('open');
+  }
+  function close() { ui.root.classList.remove('open'); document.body.classList.remove('seoil-home-open'); }
+  function isOpen() { return ui.root.classList.contains('open'); }
 
-  // ---------- 양식이 열리면: 위에 "AI로 채우기" 띠 ----------
-  var lastDoc = null;
+  // ---------- 문서가 바뀌면: 최근 문서 기록 + 빈칸 있으면 「AI로 채우기」 ----------
   function watch() {
     var d = doc();
-    if (!d || d === lastDoc) return;
-    lastDoc = d;
+    if (!d || d === cur.doc) return;
+    cur = { doc: d, tag: nextTag || '파일', name: fileName(), sig: '' };
+    nextTag = null;
     ui.bar.classList.remove('open');
-    if (!window.SeoilFill || ui.root.classList.contains('open')) return;
+    if (isOpen() || cur.tag === '새 문서' || !window.SeoilFill || /^새 문서/.test(cur.name)) return;
     var m; try { m = window.SeoilFill.scan(d); } catch (e) { return; }
     var n = 0;
     m.tables.forEach(function (t) { if (!t.guideBox) t.cells.forEach(function (c) { if (c.kind === 'empty' || c.kind === 'ph' || c.kind === 'guide') n++; }); });
     m.paras.forEach(function (p) { if (p.kind === 'ph') n++; });
-    if (n >= 2 && !document.body.classList.contains('seoil-ai-open')) {
-      ui.barText.textContent = '채울 칸 ' + n + '개가 있는 양식입니다';
+    if (n >= 2 && cur.tag !== '양식' && !document.body.classList.contains('seoil-ai-open')) {
+      ui.barText.textContent = '빈칸·자리표시 ' + n + '개가 있는 문서입니다';
       ui.bar.classList.add('open');
     }
   }
 
   function build() {
     var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
-    ui.tabs = el('div', { class: 'tabs' }); ui.list = el('div', { class: 'list' }); ui.msg = el('div', { class: 'msg' });
-    ui.sheet = el('div', { class: 'sheet' }, [
-      el('h2', { text: '무엇을 채울까요?' }),
-      el('div', { class: 'sub', text: '공문에 붙어 온 양식을 원본 그대로 열고, 빈칸·자리표시만 AI와 채웁니다.' }),
-      el('button', { class: 'main', onclick: pickForm }, [el('b', { text: '양식 채우기' }), el('span', { text: '신청서·계획서·회의록 hwp·hwpx 고르기' })]),
-      el('div', { class: 'sec', text: '최근 양식' }), ui.tabs, ui.list,
-      el('div', { class: 'tip', text: isApp
-        ? '그룹웨어·메일에서 받은 첨부 양식은 파일 앱이나 Dropbox에 저장한 뒤 고르거나, 공유 → 「서일 오피스」로 바로 열 수 있습니다.'
-        : '그룹웨어에서 받은 첨부 양식을 내려받아 고르세요. 편집기에 바로 열어도 위에 「AI로 채우기」가 뜹니다.' }),
+    ui.msg = el('div', { class: 'msg', role: 'status' });
+    ui.search = el('input', { type: 'text', placeholder: '내 양식·최근 문서에서 찾기', 'aria-label': '내 양식과 최근 문서에서 찾기', oninput: function () { S.q = ui.search.value; drawForms(); drawRecent(); } });
+    ui.tabs = el('div', { class: 'tabs', role: 'tablist', 'aria-label': '부서' });
+    ui.forms = el('div', { style: 'display:flex;flex-direction:column;gap:6px' });
+    ui.recent = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
+    ui.back = el('button', { type: 'button', class: 'back', text: '← 편집 중인 문서로', onclick: close });
+    ui.main = el('main', {}, [
+      el('div', { style: 'display:flex;flex-direction:column;gap:18px' }, [
+        el('h1', { text: '무엇을 쓸까요?' }),
+        el('label', { class: 'search' }, [svg('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'), ui.search]),
+      ]),
+      el('div', { class: 'doors' }, [
+        door('', '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 11v6M9 14h6"/>', '#1C1F23', '새 문서', 'A4 기본 문서로 바로 씁니다. 오른쪽 AI에게 초안을 부탁해도 됩니다.', 'Ctrl+N', newDoc),
+        door('main', '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M10 10v10"/><path d="M13 14.5h4M13 17h3"/>', '#FFFFFF', '양식 채우기', '공문에 붙어 온 hwp 양식을 원본 그대로 열고, 빈칸을 AI와 채웁니다.', 'hwp·hwpx를 화면에 놓아도 됩니다', pickForm),
+        door('', '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', '#1C1F23', '파일 열기', '가지고 있는 한글 문서를 열어 편집합니다. 빈칸이 있으면 AI가 먼저 제안합니다.', 'Ctrl+O', openFile),
+      ]),
       ui.msg,
-      el('div', { class: 'foot' }, [
-        el('button', { class: 'link', text: '파일 열기(편집만)', onclick: function () { close(); openFileMenu(); } }),
-        el('button', { class: 'link', text: '빈 문서로 시작', onclick: close }),
+      el('section', { class: 'cols' }, [
+        el('div', { class: 'col', style: 'flex:2 1 520px' }, [
+          el('div', { style: 'display:flex;flex-wrap:wrap;align-items:center;gap:10px' }, [el('h2', { text: '내 양식' }), el('span', { style: 'flex:1' }), ui.tabs]),
+          ui.forms,
+        ]),
+        el('div', { class: 'col', style: 'flex:1 1 300px' }, [el('h2', { text: '최근 문서' }), ui.recent]),
       ]),
     ]);
-    ui.root = el('div', { id: 'seoil-start' }, [ui.sheet]);
-    ui.root.addEventListener('click', function (e) { if (e.target === ui.root) close(); });
-    ['keydown', 'keyup', 'keypress'].forEach(function (t) { ui.root.addEventListener(t, function (e) { if (e.key === 'Escape') close(); e.stopPropagation(); }); });
+    ui.root = el('div', { id: 'seoil-home', role: 'dialog', 'aria-label': '서일 오피스 홈' }, [
+      el('div', { class: 'top' }, [
+        el('span', { class: 'logo', text: '서일' }), el('b', { style: 'font-size:16px', text: '서일 오피스' }), el('span', { style: 'flex:1' }),
+        ui.back,
+        el('button', { type: 'button', class: 'me', text: '내 정보', onclick: function () { close(); if (window.SeoilAI) { window.SeoilAI.open(true); var b = document.querySelector('#seoil-ai .hd .ibtn[title="내 정보·설정"]'); if (b) b.click(); } } }),
+      ]),
+      ui.main,
+    ]);
+    // hwp를 홈에 놓으면 양식으로 연다
+    ui.root.addEventListener('dragover', function (e) { e.preventDefault(); ui.root.classList.add('drag'); });
+    ui.root.addEventListener('dragleave', function (e) { if (e.target === ui.root) ui.root.classList.remove('drag'); });
+    ui.root.addEventListener('drop', async function (e) {
+      e.preventDefault(); ui.root.classList.remove('drag');
+      var f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!f || !/\.(hwpx?)$/i.test(f.name)) { busy(false, 'hwp·hwpx 파일을 놓아 주세요.'); return; }
+      try { busy(true); await openForm(await readBytes(f), f.name); busy(false); } catch (err) { busy(false, err.message || String(err)); }
+    });
+    ui.root.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+        var k = (e.key || '').toLowerCase();
+        if (k === 'n' || e.code === 'KeyN') { e.preventDefault(); e.stopPropagation(); newDoc(); return; }
+        if (k === 'o' || e.code === 'KeyO') { e.preventDefault(); e.stopPropagation(); openFile(); return; }
+      }
+      if (e.key === 'Escape' && ui.back.style.display !== 'none') close();
+      e.stopPropagation();
+    });
+
     ui.barText = el('span', { class: 't' });
     ui.bar = el('div', { id: 'seoil-fill-bar' }, [ui.barText,
-      el('button', { class: 'go', text: 'AI로 채우기', onclick: function () { ui.bar.classList.remove('open'); var d = doc(), b = bridge(); if (d && b) remember(b.fileName() || '양식.hwp', d.exportHwp()); if (window.SeoilAI) { window.SeoilAI.open(true); window.SeoilAI.reset(); } } }),
-      el('button', { class: 'no', text: '닫기', onclick: function () { ui.bar.classList.remove('open'); } })]);
+      el('button', { type: 'button', class: 'go', text: 'AI로 채우기', onclick: function () {
+        ui.bar.classList.remove('open');
+        var d = doc(); if (d) { try { rememberForm(fileName() || '양식.hwp', d.exportHwp()); cur.tag = '양식'; } catch (e) {} }
+        if (window.SeoilAI) { window.SeoilAI.open(true); window.SeoilAI.reset(); }
+      } }),
+      el('button', { type: 'button', class: 'no', text: '닫기', onclick: function () { ui.bar.classList.remove('open'); } })]);
+    var homeBtn = el('button', { type: 'button', id: 'seoil-home-btn', text: '홈', title: '서일 오피스 홈', onclick: open });
     document.body.appendChild(ui.root);
     document.body.appendChild(ui.bar);
+    document.body.appendChild(homeBtn);
 
-    // 편집기가 뜨면: 파일을 열고 들어온 경우가 아니면 시작 화면
-    var t0 = Date.now();
+    // 편집기가 뜨면: 파일을 열고 들어온 경우가 아니면 홈
+    var t0 = Date.now(), noStart = /[?&]nostart\b/.test(location.search);
+    if (!noStart) open();
     (function wait() {
       var d = doc();
-      if (!d) { if (Date.now() - t0 < 15000) setTimeout(wait, 200); else if (!/[?&]nostart\b/.test(location.search)) open(); return; }
+      if (!d) { if (Date.now() - t0 < 20000) setTimeout(wait, 200); return; }
       setTimeout(function () {
-        var name = (bridge().fileName && bridge().fileName()) || '';
+        var name = fileName();
         var opened = doc() !== d || !/^(새 문서|document)\.hwp$/.test(name);
-        if (!opened && !/[?&]nostart\b/.test(location.search)) open();
-        lastDoc = opened ? null : doc();
+        if (opened) close();
+        else cur = { doc: doc(), tag: '새 문서', name: name, sig: '' };
         setInterval(watch, 700);
+        setInterval(function () { if (!isOpen()) snapshot(false); }, 30000);
+        document.addEventListener('visibilitychange', function () { if (document.hidden) snapshot(false); });
       }, isApp ? 1200 : 500);
     })();
   }
 
-  window.SeoilStart = { open: open, close: close, pickForm: pickForm, openForm: openForm, recent: recent };
+  window.SeoilStart = { open: open, close: close, pickForm: pickForm, openForm: openForm, newDoc: newDoc };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();
