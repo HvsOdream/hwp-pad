@@ -88,12 +88,13 @@
   }
 
   function label(t) {
-    var grid = {}, head = -1, byRow = {};
+    // 머리글 행: 짧은 글 칸이 2개 이상이고, 바로 아래 행에 빈칸이 2개 이상(명단·표 머리)
+    var grid = {}, heads = {}, byRow = {};
     t.cells.forEach(function (c) { (byRow[c.row] = byRow[c.row] || []).push(c); });
-    Object.keys(byRow).map(Number).sort(function (a, b) { return a - b; }).some(function (r) {
+    Object.keys(byRow).map(Number).forEach(function (r) {
       var row = byRow[r], txt = row.filter(function (c) { return c.text.trim() && c.text.length < 30; });
-      if (row.length >= 3 && txt.length === row.length) { head = r; return true; }
-      return false;
+      var below = byRow[r + 1] || [], emp = below.filter(function (c) { return !c.text.trim(); });
+      if (txt.length >= 2 && txt.length >= row.length - 1 && emp.length >= 2) heads[r] = true;
     });
     t.cells.forEach(function (c) { for (var r = c.row; r < c.row + c.rs; r++) for (var k = c.col; k < c.col + c.cs; k++) grid[r + ',' + k] = c; });
     t.cells.forEach(function (c) {
@@ -103,7 +104,7 @@
       var l = left && left.text.trim() && left.text.length < 40 ? trimLabel(left.text) : '';
       var h = top && top.text.length < 40 ? trimLabel(top.text) : '';
       // 위쪽 글은 머리글 행일 때만 라벨로 쓴다(라벨-값 양식에서 윗줄 값이 라벨로 잘못 붙지 않게)
-      var headTop = top && (top.row <= head || !l);
+      var headTop = top && (heads[top.row] || !l);
       c.label = l && h && headTop && l !== h ? h + ' / ' + l : (l || (headTop ? h : ''));
       c.kind = c.hasTable ? 'box' : !c.text.trim() ? 'empty' : PH.test(c.text) ? 'ph' : /^\s*[※*]|작성|기재|내외|예\s?:/.test(c.text) && c.text.length > 8 ? 'guide' : 'text';
     });
