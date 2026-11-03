@@ -100,7 +100,7 @@
     t.cells.forEach(function (c) {
       var left = c.col > 0 ? grid[c.row + ',' + (c.col - 1)] : null;
       var top = null;
-      for (var r = c.row - 1; r >= 0; r--) { var u = grid[r + ',' + c.col]; if (u && u !== c && u.text.trim()) { top = u; break; } }
+      for (var r = c.row - 1; r >= 0; r--) { var u = grid[r + ',' + c.col]; if (u && u !== c && u.text.trim() && !/^[\s◯○●□■✓√VvOo]{1,3}$/.test(u.text)) { top = u; break; } }
       var l = left && left.text.trim() && left.text.length < 40 ? trimLabel(left.text) : '';
       var h = top && top.text.length < 40 ? trimLabel(top.text) : '';
       // 위쪽 글은 머리글 행일 때만 라벨로 쓴다(라벨-값 양식에서 윗줄 값이 라벨로 잘못 붙지 않게)
