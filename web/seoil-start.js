@@ -419,17 +419,19 @@
     // 편집기가 뜨면: 파일을 열고 들어온 경우가 아니면 홈
     var t0 = Date.now(), noStart = /[?&]nostart\b/.test(location.search);
     if (!noStart) open();
+    // 문서 감시는 처음부터 늘 돌린다(홈에 오래 머물러 편집기 문서가 늦게 생겨도)
+    setInterval(watch, 700);
+    setInterval(function () { if (!isOpen()) snapshot(false); }, 30000);
+    document.addEventListener('visibilitychange', function () { if (document.hidden) snapshot(false); });
     (function wait() {
       var d = doc();
       if (!d) { if (Date.now() - t0 < 20000) setTimeout(wait, 200); return; }
+      if (cur.doc === d && cur.tag !== '파일') return;
       setTimeout(function () {
         var name = fileName();
         var opened = doc() !== d || !/^(새 문서|document)\.hwp$/.test(name);
         if (opened) close();
-        else cur = { doc: doc(), tag: '새 문서', name: name, sig: '' };
-        setInterval(watch, 700);
-        setInterval(function () { if (!isOpen()) snapshot(false); }, 30000);
-        document.addEventListener('visibilitychange', function () { if (document.hidden) snapshot(false); });
+        else if (cur.doc === d) cur.tag = '새 문서';
       }, isApp ? 1200 : 500);
     })();
   }
