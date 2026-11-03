@@ -278,7 +278,7 @@
       if (!isMock() && !ls(LS_KEY)) say('sys', '이 기기에 AI 키가 아직 없습니다. 관리자가 개발자 모드에서 넣어 주세요.');
       return;
     }
-    if (c.total <= 2 && m.tables.some(function (t) { return t.cells.some(function (x) { return x.kind === 'text'; }); })) {
+    if (window.SeoilFill.looksFilled(m)) {
       say('ai', '이미 다 쓴 문서로 보입니다. 이 문서를 바탕으로 새로 쓸까요?\n원본은 그대로 두고 사본으로 엽니다. 날짜·내용처럼 바뀌는 칸만 고칩니다.');
       ui.log.appendChild(el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' }, [
         el('button', { class: 'chip', text: '이걸로 새로 쓰기', onclick: function () { rewrite(); } }),

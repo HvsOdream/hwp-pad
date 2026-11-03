@@ -263,7 +263,15 @@
     return score > 0 ? best : null;
   }
 
-  var api = { scan: scan, mapText: mapText, apply: apply, verify: verify, pickTableForRows: pickTableForRows, PH: PH };
+  /** 이미 다 쓴 문서인가: 자리표시·안내문이 없고 빈칸이 적다(장식용 빈칸·사진 칸은 남을 수 있음) */
+  function looksFilled(m) {
+    var all = 0, empty = 0, ph = 0;
+    m.tables.forEach(function (t) { if (!t.guideBox) t.cells.forEach(function (c) { if (c.kind === 'box') return; all++; if (c.kind === 'empty') empty++; else if (c.kind === 'ph' || c.kind === 'guide') ph++; }); });
+    m.paras.forEach(function (p) { if (p.kind === 'ph') ph++; });
+    return all >= 4 && ph === 0 && empty / all < 0.3;
+  }
+
+  var api = { looksFilled: looksFilled, scan: scan, mapText: mapText, apply: apply, verify: verify, pickTableForRows: pickTableForRows, PH: PH };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SeoilFill = api;
 })(typeof window !== 'undefined' ? window : globalThis);

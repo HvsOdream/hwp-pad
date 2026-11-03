@@ -321,7 +321,7 @@
     m.tables.forEach(function (t) { if (!t.guideBox) t.cells.forEach(function (c) { if (c.kind === 'empty' || c.kind === 'ph' || c.kind === 'guide') n++; }); });
     m.paras.forEach(function (p) { if (p.kind === 'ph') n++; });
     if (cur.tag === '양식' || document.body.classList.contains('seoil-ai-open')) return;
-    var filledForm = n < 2 && m.tables.length >= 2;
+    var filledForm = window.SeoilFill.looksFilled ? window.SeoilFill.looksFilled(m) : false;
     if (n >= 2 || filledForm) {
       ui.bar.dataset.mode = filledForm ? 'rewrite' : 'fill';
       ui.barText.textContent = filledForm ? '다 쓴 양식이네요. 이걸 바탕으로 새로 쓸까요?' : '빈칸·자리표시 ' + n + '개가 있는 문서입니다';
