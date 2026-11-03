@@ -137,7 +137,7 @@
     ui.prog = el('div', { style: 'font-size:12px;color:#5F6670' });
     var hd = el('div', { class: 'hd' }, [
       el('div', { class: 'row' }, [ui.title, ui.engine, el('span', { style: 'flex:1' }),
-        el('button', { class: 'ibtn', title: '처음부터', onclick: reset, text: '새 대화' }),
+        el('button', { class: 'ibtn', title: '처음부터', onclick: function () { reset(); }, text: '새 대화' }),
         el('button', { class: 'ibtn', title: '설정', onclick: function () { ui.set.style.display = ui.set.style.display === 'none' ? 'flex' : 'none'; }, text: '설정' }),
         el('button', { class: 'ibtn', title: '닫기', onclick: toggle, text: '닫기' })]),
       ui.form, ui.prog, el('div', { class: 'bar' }, [ui.bar]), ui.chk,
@@ -229,7 +229,14 @@
 
   function greet() {
     var i = info();
-    if (!i) say('ai', '업무협조전 양식(hwp)을 먼저 열어 주세요. 그룹웨어에서 내려받은 기안 양식이나 지난 업무협조전 파일이면 됩니다.\n\n그다음 받은 요청 공문을 첨부하면, 제출 회신을 채워 드릴게요.');
+    if (!i || received()) {
+      say('ai', received() ? '지금 열린 문서는 받은 공문입니다. 이 공문에 회신을 쓸까요?' : '받은 요청 공문을 넣어 주시면 업무협조전 회신을 채워 드릴게요.');
+      var row = el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' });
+      if (received()) row.appendChild(el('button', { class: 'chip', text: '이 공문에 회신 쓰기', onclick: function () { var b = document.querySelector('#seoil-reply-bar .go'); if (b) b.click(); } }));
+      else row.appendChild(el('button', { class: 'chip', text: '받은 공문 고르기', onclick: function () { ui.file.dataset.mode = 'reply'; ui.file.click(); } }));
+      row.appendChild(el('button', { class: 'chip', text: '시작 화면', onclick: function () { if (window.SeoilStart) window.SeoilStart.open(); } }));
+      ui.log.appendChild(row);
+    }
     else say('ai', '받은 요청 공문(hwp·pdf)을 첨부하거나, 무엇을 쓸지 말해 주세요.\n칸은 원본 양식 위에 그대로 씁니다.');
     if (!isMock() && !ls(LS_KEY)) say('sys', '이 기기에 AI 키가 아직 없습니다. 관리자가 개발자 모드에서 넣어 주세요.');
   }
@@ -251,7 +258,17 @@
   }
 
   // ---------- 첨부 ----------
-  function onFiles(e) { addFiles(e.target.files); e.target.value = ''; }
+  function received() { return !!(window.SeoilStart && window.SeoilStart.isReceived()); }
+  function onFiles(e) {
+    var files = Array.prototype.slice.call(e.target.files || []); e.target.value = '';
+    // 양식이 안 열려 있거나 받은 공문이 열려 있으면: 고른 파일을 받은 공문으로 보고 회신 흐름으로
+    if ((ui.file.dataset.mode === 'reply' || !info() || received()) && files.length && window.SeoilStart) {
+      ui.file.dataset.mode = '';
+      window.SeoilStart.replyWith(files[0]).then(function (r) { if (r && r.need === 'template') { window.SeoilStart.open(); say('sys', '업무협조전 양식을 한 번 골라 주세요(시작 화면).'); } }, function (err) { say('err', err.message || String(err)); });
+      return;
+    }
+    addFiles(files);
+  }
   function b64(buf) {
     var bytes = new Uint8Array(buf), s = '', CH = 0x8000;
     for (var i = 0; i < bytes.length; i += CH) s += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
@@ -273,8 +290,9 @@
     return '[첨부: ' + name + ']\n' + out.join('\n');
   }
   function addFiles(files) {
-    Array.prototype.forEach.call(files || [], function (file) {
+    return Promise.all(Array.prototype.map.call(files || [], function (file) { return new Promise(function (done) {
       var r = new FileReader(), name = file.name, ext = (name.split('.').pop() || '').toLowerCase();
+      r.onerror = function () { say('err', name + ' 읽기 실패'); done(); };
       r.onload = function () {
         try {
           var blk;
@@ -284,9 +302,10 @@
           else blk = { type: 'text', text: '[첨부: ' + name + ']\n' + new TextDecoder().decode(r.result).slice(0, 20000) };
           S.attach.push({ name: name, block: blk }); drawAttach();
         } catch (err) { say('err', name + ' 읽기 실패: ' + (err && err.message || err)); }
+        done();
       };
       r.readAsArrayBuffer(file);
-    });
+    }); }));
   }
   function drawAttach() {
     ui.att.innerHTML = '';
@@ -307,7 +326,8 @@
     if (S.busy) return;
     text = text != null ? text : ui.input.value.trim();
     if (!text && !S.attach.length) return;
-    if (!info()) { say('err', '업무협조전 양식을 먼저 열어 주세요.'); return; }
+    if (!info()) { say('err', '업무협조전 양식이 열려 있지 않습니다. 받은 공문을 고르거나 시작 화면에서 시작해 주세요.'); return; }
+    if (received()) { say('err', '지금 열린 문서는 받은 공문이라 고쳐 쓰지 않습니다. 「이 공문에 회신 쓰기」를 눌러 주세요.'); return; }
     if (!isMock() && !ls(LS_KEY)) { say('err', '이 기기에 AI 키가 없습니다. 관리자에게 개발자 모드에서 키를 넣어 달라고 해 주세요.'); return; }
     var content = [];
     if (S.pendingTool) { content.push({ type: 'tool_result', tool_use_id: S.pendingTool, content: '적용됨' }); S.pendingTool = null; }
@@ -398,7 +418,8 @@
     ui.log.appendChild(box); ui.log.scrollTop = ui.log.scrollHeight;
   }
 
-  function reset() { S.msgs = []; S.pendingTool = null; S.lastChecklist = null; ui.log.innerHTML = ''; setChecklist(null); greet(); }
+  function reset(quiet) { S.msgs = []; S.pendingTool = null; S.lastChecklist = null; ui.log.innerHTML = ''; setChecklist(null); refreshForm(); if (!quiet) greet(); }
+  function openPanel(on) { if (ui.panel.classList.contains('open') !== (on !== false)) toggle(); else refreshForm(); }
 
   // ---------- 시험 모드 ----------
   var mockStep = 0;
@@ -423,6 +444,6 @@
     return new Promise(function (res) { setTimeout(function () { res(r); }, 600); });
   }
 
-  window.SeoilAI = { toggle: toggle, send: send, state: S };
+  window.SeoilAI = { toggle: toggle, open: openPanel, reset: reset, send: send, addFiles: addFiles, state: S };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();
