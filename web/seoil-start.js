@@ -237,7 +237,7 @@
     list(FORMS).then(function (forms) {
       var q = norm(S.q);
       ui.tabs.innerHTML = '';
-      ['전체'].concat(DEPTS).forEach(function (t) {
+      if (forms.length) ['전체'].concat(DEPTS).forEach(function (t) {
         var n = t === '전체' ? forms.length : forms.filter(function (f) { return f.dept === t; }).length;
         if (t !== '전체' && !n) return;
         ui.tabs.appendChild(el('button', { type: 'button', role: 'tab', 'aria-selected': String(S.tab === t), class: 'tab' + (S.tab === t ? ' on' : ''), text: t + ' ' + n, onclick: function () { S.tab = t; drawForms(); } }));
