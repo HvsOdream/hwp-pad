@@ -55,7 +55,8 @@
     '#seoil-ai .hd{padding:12px 14px;border-bottom:1px solid #ECEEF1;display:flex;flex-direction:column;gap:8px}',
     '#seoil-ai .row{display:flex;align-items:center;gap:8px}',
     '#seoil-ai .badge{font-size:11px;padding:1px 8px;border-radius:10px;background:#EEF2FD;color:#2F5BEA}',
-    '#seoil-ai .ibtn{border:0;background:transparent;font:inherit;color:#5F6670;padding:4px 6px;border-radius:6px;cursor:pointer}',
+    '#seoil-ai .ibtn{border:0;background:transparent;font:inherit;color:#5F6670;padding:4px 6px;border-radius:6px;cursor:pointer;white-space:nowrap}',
+    '#seoil-ai .badge{white-space:nowrap}',
     '#seoil-ai .ibtn:hover{background:#F4F5F7}',
     '#seoil-ai .bar{height:6px;background:#ECEEF1;border-radius:3px;overflow:hidden}#seoil-ai .bar>i{display:block;height:6px;background:#2F5BEA;width:0;transition:width .3s}',
     '#seoil-ai .log{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px}',
@@ -135,7 +136,7 @@
   function build() {
     var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
     var fab = el('button', { id: 'seoil-ai-fab', title: 'AI 작성 도우미', onclick: toggle, text: 'AI 작성' });
-    ui.title = el('b', { style: 'font-size:15px', text: 'AI 작성 도우미' });
+    ui.title = el('b', { style: 'font-size:15px;white-space:nowrap', text: 'AI 작성' });
     ui.engine = el('span', { class: 'badge' });
     var taps = 0, tapT = 0;
     ui.title.addEventListener('click', function () {

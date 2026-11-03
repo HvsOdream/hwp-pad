@@ -88,7 +88,13 @@
   }
 
   function label(t) {
-    var grid = {};
+    var grid = {}, head = -1, byRow = {};
+    t.cells.forEach(function (c) { (byRow[c.row] = byRow[c.row] || []).push(c); });
+    Object.keys(byRow).map(Number).sort(function (a, b) { return a - b; }).some(function (r) {
+      var row = byRow[r], txt = row.filter(function (c) { return c.text.trim() && c.text.length < 30; });
+      if (row.length >= 3 && txt.length === row.length) { head = r; return true; }
+      return false;
+    });
     t.cells.forEach(function (c) { for (var r = c.row; r < c.row + c.rs; r++) for (var k = c.col; k < c.col + c.cs; k++) grid[r + ',' + k] = c; });
     t.cells.forEach(function (c) {
       var left = c.col > 0 ? grid[c.row + ',' + (c.col - 1)] : null;
@@ -96,7 +102,9 @@
       for (var r = c.row - 1; r >= 0; r--) { var u = grid[r + ',' + c.col]; if (u && u !== c && u.text.trim()) { top = u; break; } }
       var l = left && left.text.trim() && left.text.length < 40 ? trimLabel(left.text) : '';
       var h = top && top.text.length < 40 ? trimLabel(top.text) : '';
-      c.label = l && h && l !== h ? h + ' / ' + l : (l || h);
+      // 위쪽 글은 머리글 행일 때만 라벨로 쓴다(라벨-값 양식에서 윗줄 값이 라벨로 잘못 붙지 않게)
+      var headTop = top && (top.row <= head || !l);
+      c.label = l && h && headTop && l !== h ? h + ' / ' + l : (l || (headTop ? h : ''));
       c.kind = c.hasTable ? 'box' : !c.text.trim() ? 'empty' : PH.test(c.text) ? 'ph' : /^\s*[※*]|작성|기재|내외|예\s?:/.test(c.text) && c.text.length > 8 ? 'guide' : 'text';
     });
     t.guideBox = t.cells.some(function (c) { return /^작성\s?방법|삭제하고 제출/.test(c.text.trim()); });
@@ -114,7 +122,7 @@
         if (c.kind === 'box') return;
         if (c.kind === 'text' && !opt.all && t.cells.length > 40) return;
         var tag = c.kind === 'empty' ? '빈칸' : c.kind === 'ph' ? '자리표시' : c.kind === 'guide' ? '안내문(지우고 씀)' : '글';
-        rows.push('  ' + c.id + ' [' + (c.label || '?') + '] ' + tag + (c.kind !== 'empty' ? ': ' + c.text.replace(/\n/g, ' / ').slice(0, 140) : ''));
+        rows.push('  ' + c.id + (c.kind === 'text' ? '' : ' [' + (c.label || '?') + ']') + ' ' + tag + (c.kind !== 'empty' ? ': ' + c.text.replace(/\n/g, ' / ').slice(0, 140) : ''));
       });
       var heads = t.cells.filter(function (c) { return c.kind === 'text'; }).map(function (c) { return c.text.replace(/\n/g, ' ').slice(0, 30); }).slice(0, 14);
       L.push(t.id + ' 표 ' + t.rows + '행×' + t.cols + '열' + (t.parent ? ' (' + t.parent + ' 안)' : '') + (heads.length ? ' — 글: ' + heads.join(' | ') : ''));
