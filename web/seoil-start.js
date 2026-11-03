@@ -397,6 +397,24 @@
     document.body.appendChild(ui.root);
     document.body.appendChild(ui.bar);
     document.body.appendChild(homeBtn);
+    // 메뉴 막대 맨 앞에 「홈」, 파일 메뉴 맨 위에 「홈 화면」
+    (function addMenu() {
+      var bar = document.getElementById('menu-bar');
+      if (!bar) { setTimeout(addMenu, 300); return; }
+      if (!document.getElementById('seoil-menu-home')) {
+        var b = el('button', { type: 'button', id: 'seoil-menu-home', title: '서일 오피스 홈', 'aria-label': '홈 화면', onclick: function (e) { e.stopPropagation(); open(); },
+          style: 'font:inherit;font-size:13px;display:inline-flex;align-items:center;gap:4px;height:28px;margin:0 4px 0 2px;padding:0 10px;border:0;border-radius:6px;background:#EEF2FD;color:#2F5BEA;cursor:pointer;align-self:center' },
+          [el('span', { 'aria-hidden': 'true', style: 'display:inline-flex', html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2F5BEA" stroke-width="2.2"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>' }), '홈']);
+        bar.insertBefore(b, bar.firstChild);
+      }
+      var dd = bar.querySelector('[data-menu="file"] .menu-dropdown');
+      if (dd && !document.getElementById('seoil-md-home')) {
+        var it = el('div', { class: 'md-item', id: 'seoil-md-home', onclick: function (e) { e.stopPropagation(); document.body.click(); open(); } },
+          [el('span', { class: 'md-icon' }), el('span', { class: 'md-label', text: '홈 화면' })]);
+        dd.insertBefore(el('div', { class: 'md-sep' }), dd.firstChild);
+        dd.insertBefore(it, dd.firstChild);
+      }
+    })();
 
     // 편집기가 뜨면: 파일을 열고 들어온 경우가 아니면 홈
     var t0 = Date.now(), noStart = /[?&]nostart\b/.test(location.search);
