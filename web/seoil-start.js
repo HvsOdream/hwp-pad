@@ -38,6 +38,9 @@
     '#seoil-home .door .d{font-size:13px;color:#5F6670;line-height:1.55}',
     '#seoil-home .door.main .d,#seoil-home .door.main .k{color:#DCE4FD}',
     '#seoil-home .door .k{margin-top:auto;font-size:12px;color:#6B7280}',
+    '#seoil-home .door .sub{font-size:12px;border:1px solid #D5D9DF;border-radius:8px;padding:6px 10px;color:#1C1F23;background:#fff;cursor:pointer;min-height:32px;display:inline-flex;align-items:center}',
+    '#seoil-home .door .sub:hover{border-color:#2F5BEA;color:#2F5BEA}',
+    '#seoil-home .door .sub.on{background:#1C1F23;border-color:#1C1F23;color:#fff}',
     '#seoil-home .cols{display:flex;flex-wrap:wrap;gap:20px;margin-top:8px}',
     '#seoil-home .col{min-width:0;display:flex;flex-direction:column;gap:12px}',
     '#seoil-home h2{margin:0;font-size:16px;font-weight:700}',
@@ -221,6 +224,18 @@
     var D = doc() && doc().constructor;
     if (D && D.createEmpty) { try { window.rhwpStudio.openBytes(D.createEmpty().exportHwp(), '새 문서.hwp', null); } catch (e) {} }
   }
+  /** 서일 보고서 기본 양식(표지 + Ⅰ장 + 1. □ ○ 단계 스타일)으로 새 문서 */
+  async function newReport() {
+    try {
+      busy(true);
+      var r = await fetch('forms/' + encodeURIComponent('서일_보고서') + '.hwp');
+      if (!r.ok) throw new Error('보고서 양식을 받지 못했습니다');
+      var bytes = new Uint8Array(await r.arrayBuffer());
+      await openBytes(bytes, '보고서.hwp', '보고서');
+      busy(false); close();
+      setTimeout(function () { if (window.SeoilAI) { window.SeoilAI.open(true); window.SeoilAI.reset(); } }, 300);
+    } catch (e) { busy(false, e.message || String(e)); }
+  }
   function openFile() {
     snapshot(false);
     nextTag = '파일';
@@ -320,7 +335,7 @@
     var n = 0;
     m.tables.forEach(function (t) { if (!t.guideBox) t.cells.forEach(function (c) { if (c.kind === 'empty' || c.kind === 'ph' || c.kind === 'guide') n++; }); });
     m.paras.forEach(function (p) { if (p.kind === 'ph') n++; });
-    if (cur.tag === '양식' || document.body.classList.contains('seoil-ai-open')) return;
+    if (cur.tag === '양식' || cur.tag === '보고서' || document.body.classList.contains('seoil-ai-open')) return;
     var filledForm = window.SeoilFill.looksFilled ? window.SeoilFill.looksFilled(m) : false;
     if (n >= 2 || filledForm) {
       ui.bar.dataset.mode = filledForm ? 'rewrite' : 'fill';
@@ -344,7 +359,14 @@
         el('label', { class: 'search' }, [svg('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'), ui.search]),
       ]),
       el('div', { class: 'doors' }, [
-        door('', '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 11v6M9 14h6"/>', '#1C1F23', '새 문서', 'A4 기본 문서로 바로 씁니다. 오른쪽 AI에게 초안을 부탁해도 됩니다.', 'Ctrl+N', newDoc),
+        (function () {
+          var d0 = door('', '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 11v6M9 14h6"/>', '#1C1F23', '새 문서', '빈 문서로 바로 쓰거나, 서일 보고서 양식(표지·장·□○- 단계)으로 시작합니다.', '', newDoc);
+          var k = d0.querySelector('.k'); k.textContent = '';
+          k.style.cssText = 'margin-top:auto;display:flex;gap:6px;flex-wrap:wrap';
+          k.appendChild(el('span', { class: 'sub', role: 'button', tabindex: '0', text: '빈 문서 · Ctrl+N', onclick: function (e) { e.stopPropagation(); newDoc(); } }));
+          k.appendChild(el('span', { class: 'sub on', role: 'button', tabindex: '0', text: '보고서 양식', onclick: function (e) { e.stopPropagation(); newReport(); }, onkeydown: function (e) { if (e.key === 'Enter') { e.stopPropagation(); newReport(); } } }));
+          return d0;
+        })(),
         door('main', '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M10 10v10"/><path d="M13 14.5h4M13 17h3"/>', '#FFFFFF', '양식 채우기', '공문에 붙어 온 hwp 양식을 원본 그대로 열고, 빈칸을 AI와 채웁니다.', 'hwp·hwpx를 화면에 놓아도 됩니다', pickForm),
         door('', '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', '#1C1F23', '파일 열기', '가지고 있는 한글 문서를 열어 편집합니다. 빈칸이 있으면 AI가 먼저 제안합니다.', 'Ctrl+O', openFile),
       ]),
@@ -436,6 +458,6 @@
     })();
   }
 
-  window.SeoilStart = { open: open, close: close, pickForm: pickForm, openForm: openForm, newDoc: newDoc, forkCopy: forkCopy };
+  window.SeoilStart = { open: open, close: close, pickForm: pickForm, openForm: openForm, newDoc: newDoc, newReport: newReport, forkCopy: forkCopy };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();

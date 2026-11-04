@@ -110,6 +110,16 @@
     '- 사용자가 고쳐 달라고 하면 해당 칸만 다시 보낸다.',
     '- remaining에는 아직 못 채운 칸과 이유를 짧게. 채팅 답은 한두 문장.',
     '',
+    '[본문 쓰기 — 메시지에 [본문 구조]가 있을 때: 계획서·보고서]',
+    '- [본문 구조]의 B12 같은 번호가 문단입니다. [Ⅰ]은 장 제목 상자, [1.][가.][1)][가)][(1)]은 제목 단계, [□][○][-]는 개조식 단계, [본문]은 일반 문단.',
+    '- 쓰기 op: {"under":"B12","items":[{"level":"□","text":"…"},…]} = 제목 B12 아래 본문을 통째로 새로 씀(표·그림은 남음). {"after":"B20","items":[…]} = B20 뒤에 이어 씀. {"chapter":"추진 계획","after":"B40"} = 새 장 상자(번호 자동). {"reformat":"all"} = 손으로 친 □○- 문단을 단계 형식으로 맞춤.',
+    '- items의 level은 위 단계 중 하나. 제목 단계(1. 가. 1) …)는 번호까지 text에 쓴다(예: "2. 추진 배경"). □ ○ - 단계는 기호 없이 내용만 쓴다(기호는 양식이 붙임).',
+    '- under의 첫 item이 그 제목과 같은 단계면 제목 글을 그 글로 바꾼다(예: under B31(1. 절 제목) + 첫 item {"level":"1.","text":"1. 추진 배경"}). 장 제목 상자도 같음({"level":"Ⅰ","text":"서론"}).',
+    '- 장(Ⅰ) 아래를 통째로 쓰는 under는 그 장 전체를 지우므로, 보통은 절(1.) 단위 under를 쓴다.',
+    '- 계획서 문체: □는 핵심 한 줄, ○는 근거·내용, -는 세부. 모두 개조식 명사형 종결(…함, …임, …필요). 한 □ 아래 ○는 2~4개.',
+    '- 한 번에 한 절(1. 단위)씩 쓴다. 다 쓰면 다음 절로 갈지 question으로 묻는다. 긴 md나 자료가 오면 먼저 장·절 구성(목차)을 제안하고 확인받는다.',
+    '- 자료에 없는 수치·기관명·실적은 지어내지 말고 [확인 필요] 표시를 남기거나 묻는다.',
+    '',
     '[다시 쓰기 모드 — 메시지에 [모드] 다시 쓰기가 있을 때]',
     '- 열린 문서는 지난번에 다 쓴 문서(예: 8월 회의록)의 사본입니다. 칸 지도에 이미 쓴 글이 모두 보입니다.',
     '- 먼저 칸을 둘로 나눈다: 그대로 둘 것(학과·소속·위원 명단·양식의 고정 글) / 바꿀 것(날짜·회차·학기·안건·내용·사진 설명 등).',
@@ -120,7 +130,7 @@
 
   var TOOL = {
     name: 'fill_form',
-    description: '열린 양식의 칸을 채우거나 고치고, 필요하면 사용자에게 질문 하나를 낸다.',
+    description: '열린 양식의 칸을 채우거나 본문을 쓰고, 필요하면 사용자에게 질문 하나를 낸다.',
     input_schema: {
       type: 'object',
       properties: {
@@ -128,6 +138,8 @@
           cell: { type: 'string' }, para: { type: 'string' }, rows: { type: 'string' },
           text: { type: 'string' }, find: { type: 'string' }, replace: { type: 'string' },
           start: { type: 'integer' }, data: { type: 'array', items: { type: 'array', items: { type: 'string' } } },
+          under: { type: 'string' }, after: { type: 'string' }, chapter: { type: 'string' }, reformat: { type: 'string' },
+          items: { type: 'array', items: { type: 'object', properties: { level: { type: 'string' }, text: { type: 'string' } }, required: ['level', 'text'] } },
         } } },
         remaining: { type: 'array', items: { type: 'string' } },
         question: { type: 'object', properties: { about: { type: 'string' }, text: { type: 'string' }, options: { type: 'array', items: { type: 'string' } } }, required: ['text'] },
@@ -278,6 +290,15 @@
       if (!isMock() && !ls(LS_KEY)) say('sys', '이 기기에 AI 키가 아직 없습니다. 관리자가 개발자 모드에서 넣어 주세요.');
       return;
     }
+    if (writable() && !window.SeoilFill.looksFilled(m)) {
+      say('ai', '보고서 본문을 같이 씁니다. 주제·목차·메모·md 파일을 주세요.\n장·절 구성부터 잡고, 한 절씩 양식의 □·○·- 형식으로 씁니다.');
+      ui.log.appendChild(el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' }, [
+        el('button', { class: 'chip', text: '목차부터 잡기', onclick: function () { send('이 문서의 장·절 목차부터 같이 잡아 주세요. 무엇에 대한 보고서인지 먼저 물어봐 주세요.'); } }),
+        el('button', { class: 'chip', text: '문단 형식 맞추기', onclick: reformatAll }),
+      ]));
+      if (!isMock() && !ls(LS_KEY)) say('sys', '이 기기에 AI 키가 아직 없습니다. 관리자가 개발자 모드에서 넣어 주세요.');
+      return;
+    }
     if (window.SeoilFill.looksFilled(m)) {
       say('ai', '이미 다 쓴 문서로 보입니다. 이 문서를 바탕으로 새로 쓸까요?\n원본은 그대로 두고 사본으로 엽니다. 날짜·내용처럼 바뀌는 칸만 고칩니다.');
       ui.log.appendChild(el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' }, [
@@ -356,9 +377,15 @@
   }
 
   // ---------- 대화 ----------
+  function writable() { var d = doc(); try { return !!(d && window.SeoilWrite && window.SeoilWrite.supports(d)); } catch (e) { return false; } }
   function docState(m) {
-    var rw = S.mode === 'rewrite';
-    return (rw ? '[모드] 다시 쓰기\n' : '') + '[칸 지도' + (rw ? ' — 이미 쓴 글 포함' : '') + ']\n' + window.SeoilFill.mapText(m, { all: rw }) + '\n\n[문서 이름] ' + fileName() + '\n[내 정보] ' + profileText() + '\n[오늘] ' + new Date().toISOString().slice(0, 10);
+    var rw = S.mode === 'rewrite', d = doc(), body = '';
+    if (writable()) {
+      var o = window.SeoilWrite.outline(d), lv = window.SeoilWrite.levels(d);
+      body = '[본문 구조]\n' + window.SeoilWrite.outlineText(o, { full: rw }) + '\n[이 양식의 단계] ' + Object.keys(lv).join(' ') + '\n\n';
+    }
+    var map = window.SeoilFill.mapText(m, { all: rw });
+    return (rw ? '[모드] 다시 쓰기\n' : '') + body + '[칸 지도' + (rw ? ' — 이미 쓴 글 포함' : '') + ']\n' + (map || '(없음)') + '\n\n[문서 이름] ' + fileName() + '\n[내 정보] ' + profileText() + '\n[오늘] ' + new Date().toISOString().slice(0, 10);
   }
 
   function send(text) {
@@ -368,7 +395,7 @@
     var grid = !S.attach.length && parseGrid(text);
     if (grid) { ui.input.value = ''; say('me', '[명단 ' + grid.length + '줄 붙여넣기]'); pasteRows(grid); return; }
     var m = scan();
-    if (!m || (!m.tables.length && !m.paras.length)) { say('err', '채울 양식이 열려 있지 않습니다.'); return; }
+    if ((!m || (!m.tables.length && !m.paras.length)) && !writable()) { say('err', '채울 양식이 열려 있지 않습니다.'); return; }
     if (!isMock() && !ls(LS_KEY)) { say('err', '이 기기에 AI 키가 없습니다. 관리자에게 개발자 모드에서 키를 넣어 달라고 해 주세요.'); return; }
     var content = [];
     if (S.pendingTool) { content.push({ type: 'tool_result', tool_use_id: S.pendingTool.id, content: S.pendingTool.result || '적용됨' }); S.pendingTool = null; }
@@ -389,7 +416,7 @@
     var p = isMock() ? mockReply() : fetch(ls(LS_URL) || DEFAULT_URL, {
       method: 'POST',
       headers: apiHeaders(),
-      body: JSON.stringify({ model: ls(LS_MODEL) || DEFAULT_MODEL, max_tokens: 4096, system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }], tools: [TOOL], messages: cached(S.msgs) }),
+      body: JSON.stringify({ model: ls(LS_MODEL) || DEFAULT_MODEL, max_tokens: 8000, system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }], tools: [TOOL], messages: cached(S.msgs) }),
     }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status)); return j; }); });
     p.then(function (res) {
       thinking.remove();
@@ -432,8 +459,18 @@
     var before = scan(), snap = null;
     try { snap = d.saveSnapshot(); } catch (e) {}
     try {
-      var r = window.SeoilFill.apply(d, before, ops);
+      var wops = (ops || []).filter(function (o) { return o.under || o.after || o.chapter || o.reformat; });
+      var fops = (ops || []).filter(function (o) { return !(o.under || o.after || o.chapter || o.reformat); });
+      var r = fops.length ? window.SeoilFill.apply(d, before, fops) : { done: [], log: [] };
+      if (wops.length) {
+        var w = window.SeoilWrite.apply(d, wops);
+        r.done = r.done.concat(w.done); r.log = r.log.concat(w.log);
+      }
       var after = window.SeoilFill.scan(d), v = window.SeoilFill.verify(before, after);
+      if (wops.length) { // 본문을 쓰면 표 순서가 밀릴 수 있다 → 원래 표가 하나도 줄지 않았는지만 본다
+        v.bad = after.tables.length < before.tables.length ? ['표가 ' + (before.tables.length - after.tables.length) + '개 사라짐'] : [];
+        v.ok = !v.bad.length;
+      }
       if (!v.ok) {
         if (snap != null) d.restoreSnapshot(snap);
         bridge().changed('seoil-ai-undo');
@@ -443,7 +480,7 @@
       bridge().changed('seoil-ai-fill');
       var box = el('div', { class: 'applied' }, [
         el('span', { style: 'color:#1E8E5A;font-weight:700', text: '✓' }),
-        el('span', { style: 'flex:1', text: label || (r.done.length + '곳에 썼습니다: ' + r.done.slice(0, 8).join(', ') + (r.done.length > 8 ? ' …' : '')) }),
+        el('span', { style: 'flex:1', text: label || ('썼습니다: ' + r.done.slice(0, 8).join(', ') + (r.done.length > 8 ? ' …' : '')) }),
       ]);
       if (snap != null) {
         box.appendChild(el('button', { class: 'chip', style: 'font-size:12px;padding:2px 10px', text: '되돌리기', onclick: function () {
@@ -470,6 +507,11 @@
     ui.log.appendChild(box); ui.log.scrollTop = ui.log.scrollHeight;
   }
 
+  /** 동일한 문단 형식으로: 손으로 친 □○- 문단을 양식의 단계 스타일로(AI 없이) */
+  function reformatAll() {
+    if (!writable()) { say('err', '이 문서에는 단계 스타일(1. □ ○ -)이 없어 형식을 맞출 수 없습니다.'); return; }
+    applyOps([{ reformat: 'all' }], '문단 형식을 양식의 단계에 맞췄습니다');
+  }
   /** 지난 문서로 새로 쓰기: 사본을 새 이름으로 열고 다시 쓰기 모드로 */
   function rewrite() {
     if (!window.SeoilStart || !window.SeoilStart.forkCopy) { S.mode = 'rewrite'; reset(); return; }
@@ -491,6 +533,6 @@
     return new Promise(function (res) { setTimeout(function () { res(r); }, 500); });
   }
 
-  window.SeoilAI = { toggle: toggle, open: openPanel, reset: reset, send: send, addFiles: addFiles, refresh: refreshForm, rewrite: rewrite, state: S };
+  window.SeoilAI = { toggle: toggle, open: openPanel, reset: reset, send: send, addFiles: addFiles, refresh: refreshForm, rewrite: rewrite, reformatAll: reformatAll, applyOps: applyOps, state: S };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();
