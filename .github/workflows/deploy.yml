@@ -23,7 +23,7 @@ on:
     - cron: '0 18 * * 0'
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -568,6 +568,19 @@ jobs:
           name: site
           path: site
           retention-days: 14
+
+      # 개발용: 빌드된 웹 번들(글꼴 제외)을 site-build 브랜치에 둔다 → 개발 환경에서 git으로 받아 엔진을 직접 시험
+      - name: Publish build to site-build branch (dev testing)
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/sb && mkdir -p /tmp/sb && cp -r site/. /tmp/sb/ && rm -rf /tmp/sb/fonts
+          cd /tmp/sb
+          git init -q -b site-build
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -qm "site build ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" site-build
+          du -sh /tmp/sb
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
