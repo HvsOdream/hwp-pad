@@ -1,0 +1,19 @@
+# 서일 오피스 AI 중계 서버. 배포는 .github/workflows/proxy.yml이 한다(KV id는 배포 때 채움).
+name = "seoil-ai"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[[kv_namespaces]]
+binding = "KV"
+id = "__KV_ID__"
+
+[vars]
+BACKEND = "anthropic"
+MODEL = "claude-sonnet-5-5"
+MODELS = "claude-sonnet-5-5,claude-haiku-5-5"
+MAX_TOKENS = "8000"
+DEFAULT_DAILY = "50"
+MONTH_CAP = "0"
+ORIGINS = "https://hvsodream.github.io,capacitor://localhost,http://localhost:8765"
+# 교내 sLLM으로 바꿀 때: BACKEND = "openai", SLLM_URL = "https://…", SLLM_MODEL = "…" (SLLM_KEY는 시크릿)

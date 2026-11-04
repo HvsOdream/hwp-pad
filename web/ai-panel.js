@@ -7,9 +7,11 @@
 // - AI는 Claude API를 브라우저에서 바로 부른다(파일럿: 키는 개발자 모드에서만). ?ai=mock 이면 정해진 답으로 흐름만 시험.
 (function () {
   'use strict';
-  var LS_KEY = 'seoil.ai.key', LS_MODEL = 'seoil.ai.model', LS_URL = 'seoil.ai.url', LS_DEV = 'seoil.ai.dev', LS_MOCK = 'seoil.ai.mock', LS_PROFILE = 'seoil.profile';
+  var LS_KEY = 'seoil.ai.key', LS_MODEL = 'seoil.ai.model', LS_URL = 'seoil.ai.url', LS_DEV = 'seoil.ai.dev', LS_MOCK = 'seoil.ai.mock', LS_PROFILE = 'seoil.profile', LS_CODE = 'seoil.ai.code';
   var DEFAULT_MODEL = 'claude-sonnet-5-5';
   var DEFAULT_URL = 'https://api.anthropic.com/v1/messages';
+  // 학교 AI 중계 서버(proxy/). 학교 키는 서버에만 있고, 앱은 관리자가 나눠 준 「AI 사용 코드」만 보낸다.
+  var SCHOOL_URL = window.SEOIL_AI_URL || ''; // 첫 배포 뒤 workers.dev 주소를 넣는다
   (function () {
     var m = location.search.match(/[?&]dev=([01])\b/);
     if (m) { try { if (m[1] === '1') localStorage.setItem(LS_DEV, '1'); else localStorage.removeItem(LS_DEV); } catch (e) {} }
@@ -197,9 +199,23 @@
     refreshForm();
   }
 
+  function ownKey() { return !!ls(LS_KEY); } // 개발자 모드에서 넣은 자기 키 → Claude API 직접
+  function aiUrl() { return ls(LS_URL) || (ownKey() ? DEFAULT_URL : SCHOOL_URL); }
+  function ready() { return isMock() || ownKey() || (!!ls(LS_CODE) && !!aiUrl()); }
+  var NOT_READY_CODE = 'AI 사용 코드가 아직 없습니다. 위의 「내 정보」를 눌러 관리자에게 받은 코드를 넣어 주세요.';
+  function notReady() { return (!ls(LS_CODE) || ownKey()) ? NOT_READY_CODE : '학교 AI 서버가 아직 준비되지 않았습니다. 관리자에게 알려 주세요.'; }
+  function checkCode(out) {
+    if (!aiUrl()) { out.textContent = '학교 AI 서버가 아직 준비되지 않았습니다.'; return; }
+    out.textContent = '확인 중…';
+    fetch(aiUrl().replace(/\/v1\/messages$/, '/v1/me'), { headers: { 'x-seoil-code': ls(LS_CODE) } })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status)); return j; }); })
+      .then(function (j) { out.textContent = j.name + ' 님 · 오늘 ' + j.today + ' / ' + j.daily + '회 사용'; })
+      .catch(function (e) { out.textContent = '확인 실패: ' + (e && e.message || e); });
+  }
   function mask(k) { return k ? k.slice(0, 7) + '…' + k.slice(-4) : ''; }
+  function drawEngine() { ui.engine.textContent = isMock() ? '시험 모드' : (ownKey() ? '내 키' : '학교 AI'); }
   function drawSettings() {
-    ui.engine.textContent = isMock() ? '시험 모드' : (ls(LS_URL) ? '교내 서버' : 'Claude API');
+    ui.engine.textContent = isMock() ? '시험 모드' : (ownKey() ? '내 키' : '학교 AI');
     ui.set.innerHTML = '';
     var p = profile(), inputs = {};
     ui.set.appendChild(el('h4', { text: '내 정보' }));
@@ -212,7 +228,18 @@
       var o = {}; PROFILE_FIELDS.forEach(function (f) { var v = inputs[f[0]].value.trim(); if (v) o[f[0]] = v; });
       ls(LS_PROFILE, JSON.stringify(o)); ui.set.style.display = 'none'; say('sys', '내 정보를 저장했습니다.');
     } })]));
-    if (!isDev()) { ui.set.appendChild(el('div', { class: 'note', text: 'AI 키는 관리자가 개발자 모드에서 넣습니다.' + (ls(LS_KEY) ? ' (이 기기: 키 있음)' : ' (이 기기: 키 없음)') })); return; }
+    // AI 사용 코드
+    var code = el('input', { type: 'text', placeholder: 'SEOIL-XXXX-XXXX', value: ls(LS_CODE), autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false' });
+    var codeOut = el('div', { class: 'note', text: ls(LS_CODE) ? '' : '관리자에게 받은 코드를 넣으면 AI를 쓸 수 있습니다. 이 기기에만 저장됩니다.' });
+    ui.set.appendChild(el('h4', { style: 'margin-top:6px', text: 'AI 사용 코드' }));
+    ui.set.appendChild(code);
+    ui.set.appendChild(el('div', { class: 'row' }, [
+      el('button', { class: 'send', style: 'height:34px', text: '코드 저장', onclick: function () { var v = code.value.trim().toUpperCase(); ls(LS_CODE, v || null); code.value = v; if (v) checkCode(codeOut); else codeOut.textContent = '코드를 지웠습니다.'; drawEngine(); } }),
+      el('button', { class: 'chip', text: '사용량 보기', onclick: function () { if (ls(LS_CODE)) checkCode(codeOut); } }),
+    ]));
+    ui.set.appendChild(codeOut);
+    if (ls(LS_CODE)) checkCode(codeOut);
+    if (!isDev()) return;
     var key = el('input', { type: 'password', placeholder: 'sk-ant-…', autocomplete: 'off' });
     var model = el('input', { type: 'text', value: ls(LS_MODEL) || DEFAULT_MODEL });
     var url = el('input', { type: 'text', placeholder: DEFAULT_URL, value: ls(LS_URL) });
@@ -226,7 +253,7 @@
       el('button', { class: 'chip', text: '키 시험', onclick: testKey }),
     ]));
     ui.set.appendChild(el('label', null, ['모델', model]));
-    ui.set.appendChild(el('label', null, ['서버 주소 (비우면 Claude API — 나중에 교내 sLLM 주소)', url]));
+    ui.set.appendChild(el('label', null, ['서버 주소 (비우면 자동: 내 키가 있으면 Claude API, 없으면 학교 AI 중계 서버)', url]));
     ui.set.appendChild(el('label', { style: 'flex-direction:row;align-items:center;gap:6px' }, [mock, '시험 모드 (AI 부르지 않고 정해진 답)']));
     ui.set.appendChild(el('div', { class: 'row' }, [
       el('button', { class: 'send', style: 'height:34px', text: '개발 설정 저장', onclick: function () {
@@ -239,15 +266,16 @@
   }
 
   function testKey() {
-    if (!ls(LS_KEY)) { say('err', '키가 없습니다.'); return; }
+    if (!ready()) { say('err', notReady()); return; }
     var t = say('sys', '키 시험 중…');
-    fetch(ls(LS_URL) || DEFAULT_URL, { method: 'POST', headers: apiHeaders(),
+    fetch(aiUrl(), { method: 'POST', headers: apiHeaders(),
       body: JSON.stringify({ model: ls(LS_MODEL) || DEFAULT_MODEL, max_tokens: 16, messages: [{ role: 'user', content: '확인. "됨"이라고만 답해.' }] }) })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status)); return j; }); })
       .then(function (j) { t.remove(); say('sys', '키 정상 (' + (j.model || '') + ')'); })
       .catch(function (e) { t.remove(); say('err', '키 시험 실패: ' + (e && e.message || e)); });
   }
   function apiHeaders() {
+    if (!ownKey()) return { 'content-type': 'application/json', 'x-seoil-code': ls(LS_CODE) };
     return { 'content-type': 'application/json', 'x-api-key': ls(LS_KEY), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' };
   }
 
@@ -294,7 +322,7 @@
       ui.log.appendChild(el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' }, [
         el('button', { class: 'chip', text: '바꿀 칸부터 정리', onclick: function () { send('이번에 바꿔야 할 칸(날짜·회차·학기·안건·내용 등)과 그대로 둘 칸을 짧게 정리하고, 바꿀 것을 하나씩 물어봐 주세요.'); } }),
       ]));
-      if (!isMock() && !ls(LS_KEY)) say('sys', '이 기기에 AI 키가 아직 없습니다. 관리자가 개발자 모드에서 넣어 주세요.');
+      if (!ready()) say('sys', notReady());
       return;
     }
     if (writable() && !window.SeoilFill.looksFilled(m)) {
@@ -303,7 +331,7 @@
         el('button', { class: 'chip', text: '목차부터 잡기', onclick: function () { send('이 문서의 장·절 목차부터 같이 잡아 주세요. 무엇에 대한 보고서인지 먼저 물어봐 주세요.'); } }),
         el('button', { class: 'chip', text: '문단 형식 맞추기', onclick: reformatAll }),
       ]));
-      if (!isMock() && !ls(LS_KEY)) say('sys', '이 기기에 AI 키가 아직 없습니다. 관리자가 개발자 모드에서 넣어 주세요.');
+      if (!ready()) say('sys', notReady());
       return;
     }
     if (window.SeoilFill.looksFilled(m)) {
@@ -319,7 +347,7 @@
     row.appendChild(el('button', { class: 'chip', text: '내 정보로 채울 수 있는 칸부터', onclick: function () { send('내 정보와 오늘 날짜로 채울 수 있는 칸부터 채워 주세요. 나머지는 하나씩 물어봐 주세요.'); } }));
     if (!profile().name) row.appendChild(el('button', { class: 'chip', text: '내 정보 입력', onclick: function () { drawSettings(); ui.set.style.display = 'flex'; } }));
     ui.log.appendChild(row);
-    if (!isMock() && !ls(LS_KEY)) say('sys', '이 기기에 AI 키가 아직 없습니다. 관리자가 개발자 모드에서 넣어 주세요.');
+    if (!ready()) say('sys', notReady());
   }
 
   function say(kind, text) { var b = el('div', { class: kind, text: text }); ui.log.appendChild(b); ui.log.scrollTop = ui.log.scrollHeight; return b; }
@@ -404,7 +432,7 @@
     if (grid) { ui.input.value = ''; say('me', '[명단 ' + grid.length + '줄 붙여넣기]'); pasteRows(grid); return; }
     var m = scan();
     if ((!m || (!m.tables.length && !m.paras.length)) && !writable()) { say('err', '채울 양식이 열려 있지 않습니다.'); return; }
-    if (!isMock() && !ls(LS_KEY)) { say('err', '이 기기에 AI 키가 없습니다. 관리자에게 개발자 모드에서 키를 넣어 달라고 해 주세요.'); return; }
+    if (!ready()) { say('err', notReady()); return; }
     var content = [];
     if (S.pendingTool) { content.push({ type: 'tool_result', tool_use_id: S.pendingTool.id, content: S.pendingTool.result || '적용됨' }); S.pendingTool = null; }
     S.attach.forEach(function (a) { content.push(a.block); });
@@ -421,7 +449,7 @@
   function call() {
     busy(true);
     var thinking = say('sys', '읽고 쓰는 중…');
-    var p = isMock() ? mockReply() : fetch(ls(LS_URL) || DEFAULT_URL, {
+    var p = isMock() ? mockReply() : fetch(aiUrl(), {
       method: 'POST',
       headers: apiHeaders(),
       body: JSON.stringify({ model: ls(LS_MODEL) || DEFAULT_MODEL, max_tokens: 8000, system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }], tools: [TOOL], messages: cached(S.msgs) }),
@@ -489,6 +517,10 @@
         bridge().changed('seoil-ai-undo');
         say('err', '원본 양식과 구조가 달라져 되돌렸습니다: ' + v.bad.join(', '));
         return '실패(되돌림): ' + v.bad.join(', ');
+      }
+      if (!r.done.length) { // 바뀐 것이 없으면 ✓ 상자 없이 사정만
+        if (r.log.length) say('warn', r.log.join('\n'));
+        return '바꾼 것 없음' + (r.log.length ? ': ' + r.log.join('; ') : '');
       }
       bridge().changed('seoil-ai-fill');
       var box = el('div', { class: 'applied' }, [
