@@ -41,6 +41,16 @@
     '#seoil-home .door .sub{font-size:12px;border:1px solid #D5D9DF;border-radius:8px;padding:6px 10px;color:#1C1F23;background:#fff;cursor:pointer;min-height:32px;display:inline-flex;align-items:center}',
     '#seoil-home .door .sub:hover{border-color:#2F5BEA;color:#2F5BEA}',
     '#seoil-home .door .sub.on{background:#1C1F23;border-color:#1C1F23;color:#fff}',
+    '#seoil-home .tpl{display:flex;flex-direction:column;gap:12px}',
+    '#seoil-home .tpls{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}',
+    '#seoil-home .tc{font:inherit;text-align:left;border:1px solid #E3E6EA;border-radius:12px;background:#fff;padding:12px;display:flex;gap:12px;align-items:center;cursor:pointer;color:#1C1F23;min-height:96px}',
+    '#seoil-home .tc:hover{border-color:#2F5BEA}',
+    '#seoil-home .thumb{flex:none;width:54px;height:72px;border:1px solid #D5D9DF;border-radius:4px;background:#fff;padding:7px 6px;display:flex;flex-direction:column;gap:4px}',
+    '#seoil-home .thumb i{display:block;height:3px;background:#C9CDD3;border-radius:2px}',
+    '#seoil-home .thumb .bx{height:7px;background:none;display:flex;gap:2px}#seoil-home .thumb .bx b{width:8px;background:#1E3A6B;border-radius:1px}#seoil-home .thumb .bx s{flex:1;background:#DCE6F5;border:1px solid #8FA8D4;border-radius:1px}',
+    '#seoil-home .thumb .h{width:60%;background:#5F6670}',
+    '#seoil-home .thumb .l1{width:80%;margin-left:3px}#seoil-home .thumb .l2{width:75%;margin-left:7px}#seoil-home .thumb .s{width:60%}',
+    '#seoil-home .tt{display:flex;flex-direction:column;gap:2px;min-width:0}#seoil-home .tt b{font-size:15px}#seoil-home .tt small{font-size:12px;color:#5F6670;line-height:1.5}',
     '#seoil-home .cols{display:flex;flex-wrap:wrap;gap:20px;margin-top:8px}',
     '#seoil-home .col{min-width:0;display:flex;flex-direction:column;gap:12px}',
     '#seoil-home h2{margin:0;font-size:16px;font-weight:700}',
@@ -359,18 +369,20 @@
         el('label', { class: 'search' }, [svg('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'), ui.search]),
       ]),
       el('div', { class: 'doors' }, [
-        (function () {
-          var d0 = door('', '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 11v6M9 14h6"/>', '#1C1F23', '새 문서', '빈 문서로 바로 쓰거나, 서일 보고서 양식(표지·장·□○- 단계)으로 시작합니다.', '', newDoc);
-          var k = d0.querySelector('.k'); k.textContent = '';
-          k.style.cssText = 'margin-top:auto;display:flex;gap:6px;flex-wrap:wrap';
-          k.appendChild(el('span', { class: 'sub', role: 'button', tabindex: '0', text: '빈 문서 · Ctrl+N', onclick: function (e) { e.stopPropagation(); newDoc(); } }));
-          k.appendChild(el('span', { class: 'sub on', role: 'button', tabindex: '0', text: '보고서 양식', onclick: function (e) { e.stopPropagation(); newReport(); }, onkeydown: function (e) { if (e.key === 'Enter') { e.stopPropagation(); newReport(); } } }));
-          return d0;
-        })(),
+        door('', '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 11v6M9 14h6"/>', '#1C1F23', '새 문서', 'A4 빈 문서로 바로 씁니다. 오른쪽 AI에게 초안을 부탁해도 됩니다.', 'Ctrl+N', newDoc),
         door('main', '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M10 10v10"/><path d="M13 14.5h4M13 17h3"/>', '#FFFFFF', '양식 채우기', '공문에 붙어 온 hwp 양식을 원본 그대로 열고, 빈칸을 AI와 채웁니다.', 'hwp·hwpx를 화면에 놓아도 됩니다', pickForm),
         door('', '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', '#1C1F23', '파일 열기', '가지고 있는 한글 문서를 열어 편집합니다. 빈칸이 있으면 AI가 먼저 제안합니다.', 'Ctrl+O', openFile),
       ]),
       ui.msg,
+      el('section', { class: 'tpl' }, [
+        el('h2', { text: '서일 기본 양식' }),
+        el('div', { class: 'tpls' }, [
+          el('button', { type: 'button', class: 'tc', onclick: newReport, 'aria-label': '보고서 양식으로 새 문서' }, [
+            el('span', { class: 'thumb', 'aria-hidden': 'true', html: '<i class="bx"><b></b><s></s></i><i class="h"></i><i class="l1"></i><i class="l2"></i><i class="l2 s"></i><i class="l1"></i><i class="l2"></i>' }),
+            el('span', { class: 'tt' }, [el('b', { text: '보고서' }), el('small', { text: '표지 · Ⅰ. 장 · 1. 절 · □ ○ - 개조식' })]),
+          ]),
+        ]),
+      ]),
       el('section', { class: 'cols' }, [
         el('div', { class: 'col', style: 'flex:2 1 520px' }, [
           el('div', { style: 'display:flex;flex-wrap:wrap;align-items:center;gap:10px' }, [el('h2', { text: '내 양식' }), el('span', { style: 'flex:1' }), ui.tabs]),
