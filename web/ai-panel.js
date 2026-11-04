@@ -120,6 +120,12 @@
     '- 한 번에 한 절(1. 단위)씩 쓴다. 다 쓰면 다음 절로 갈지 question으로 묻는다. 긴 md나 자료가 오면 먼저 장·절 구성(목차)을 제안하고 확인받는다.',
     '- 자료에 없는 수치·기관명·실적은 지어내지 말고 [확인 필요] 표시를 남기거나 묻는다.',
     '',
+    '[부분 강조 — 사용자가 강조·굵게·밑줄·색을 부탁할 때]',
+    '- 강조 op: {"emph":"B12","find":"핵심 문구","style":"bold"}. emph는 문단(B12·P5)이나 칸(T2.r0c1), 어디든이면 "all"(이때 find 필수). find가 없으면 그 문단·칸 전체.',
+    '- style: bold(굵게), underline(밑줄), red(빨강), blue(파랑), shade(형광), italic. 섞을 때는 "bold+underline".',
+    '- 알아서 고르라고 하면 문서를 읽고 핵심만 고른다: 한 □ 문단에 1곳, 문서 전체 5~12곳. 문장 통째보다 핵심 낱말·수치·결론 구절(2~15자). 사용자가 따로 말하지 않으면 bold. 글자는 바꾸지 않는다.',
+    '- find는 문서에 있는 글자 그대로(띄어쓰기까지) 쓴다.',
+    '',
     '[다시 쓰기 모드 — 메시지에 [모드] 다시 쓰기가 있을 때]',
     '- 열린 문서는 지난번에 다 쓴 문서(예: 8월 회의록)의 사본입니다. 칸 지도에 이미 쓴 글이 모두 보입니다.',
     '- 먼저 칸을 둘로 나눈다: 그대로 둘 것(학과·소속·위원 명단·양식의 고정 글) / 바꿀 것(날짜·회차·학기·안건·내용·사진 설명 등).',
@@ -139,6 +145,7 @@
           text: { type: 'string' }, find: { type: 'string' }, replace: { type: 'string' },
           start: { type: 'integer' }, data: { type: 'array', items: { type: 'array', items: { type: 'string' } } },
           under: { type: 'string' }, after: { type: 'string' }, chapter: { type: 'string' }, reformat: { type: 'string' },
+          emph: { type: 'string' }, style: { type: 'string' },
           items: { type: 'array', items: { type: 'object', properties: { level: { type: 'string' }, text: { type: 'string' } }, required: ['level', 'text'] } },
         } } },
         remaining: { type: 'array', items: { type: 'string' } },
@@ -378,13 +385,14 @@
 
   // ---------- 대화 ----------
   function writable() { var d = doc(); try { return !!(d && window.SeoilWrite && window.SeoilWrite.supports(d)); } catch (e) { return false; } }
-  function docState(m) {
-    var rw = S.mode === 'rewrite', d = doc(), body = '';
+  function docState(m, text) {
+    // 강조 부탁이면 글자를 그대로 찾아야 하므로 본문·칸 글을 다 보여 준다
+    var rw = S.mode === 'rewrite', d = doc(), body = '', full = rw || /강조|굵게|볼드|밑줄|형광|빨간|빨강|파란|색/.test(text || '');
     if (writable()) {
       var o = window.SeoilWrite.outline(d), lv = window.SeoilWrite.levels(d);
-      body = '[본문 구조]\n' + window.SeoilWrite.outlineText(o, { full: rw }) + '\n[이 양식의 단계] ' + Object.keys(lv).join(' ') + '\n\n';
+      body = '[본문 구조]\n' + window.SeoilWrite.outlineText(o, { full: full }) + '\n[이 양식의 단계] ' + Object.keys(lv).join(' ') + '\n\n';
     }
-    var map = window.SeoilFill.mapText(m, { all: rw });
+    var map = window.SeoilFill.mapText(m, { all: full });
     return (rw ? '[모드] 다시 쓰기\n' : '') + body + '[칸 지도' + (rw ? ' — 이미 쓴 글 포함' : '') + ']\n' + (map || '(없음)') + '\n\n[문서 이름] ' + fileName() + '\n[내 정보] ' + profileText() + '\n[오늘] ' + new Date().toISOString().slice(0, 10);
   }
 
@@ -400,7 +408,7 @@
     var content = [];
     if (S.pendingTool) { content.push({ type: 'tool_result', tool_use_id: S.pendingTool.id, content: S.pendingTool.result || '적용됨' }); S.pendingTool = null; }
     S.attach.forEach(function (a) { content.push(a.block); });
-    content.push({ type: 'text', text: docState(m) + '\n\n[사용자] ' + (text || '첨부한 자료로 양식을 채워 주세요.') });
+    content.push({ type: 'text', text: docState(m, text) + '\n\n[사용자] ' + (text || '첨부한 자료로 양식을 채워 주세요.') });
     say('me', (S.attach.length ? '첨부 ' + S.attach.map(function (a) { return a.name; }).join(', ') + (text ? '\n' : '') : '') + (text || ''));
     S.attach = []; drawAttach(); ui.input.value = '';
     S.msgs.push({ role: 'user', content: content });
@@ -459,12 +467,17 @@
     var before = scan(), snap = null;
     try { snap = d.saveSnapshot(); } catch (e) {}
     try {
-      var wops = (ops || []).filter(function (o) { return o.under || o.after || o.chapter || o.reformat; });
-      var fops = (ops || []).filter(function (o) { return !(o.under || o.after || o.chapter || o.reformat); });
+      var eops = (ops || []).filter(function (o) { return o.emph; });
+      var wops = (ops || []).filter(function (o) { return !o.emph && (o.under || o.after || o.chapter || o.reformat); });
+      var fops = (ops || []).filter(function (o) { return !o.emph && !(o.under || o.after || o.chapter || o.reformat); });
       var r = fops.length ? window.SeoilFill.apply(d, before, fops) : { done: [], log: [] };
       if (wops.length) {
         var w = window.SeoilWrite.apply(d, wops);
         r.done = r.done.concat(w.done); r.log = r.log.concat(w.log);
+      }
+      if (eops.length) { // 강조는 글을 다 쓴 뒤에(문단 번호가 정해진 다음)
+        var e = window.SeoilWrite.emphasize(d, eops);
+        r.done = r.done.concat(e.done); r.log = r.log.concat(e.log);
       }
       var after = window.SeoilFill.scan(d), v = window.SeoilFill.verify(before, after);
       if (wops.length) { // 본문을 쓰면 표 순서가 밀릴 수 있다 → 원래 표가 하나도 줄지 않았는지만 본다

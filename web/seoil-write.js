@@ -267,10 +267,67 @@
     return { done: done, log: log, paragraphs: total };
   }
 
+  // ---------- 부분 강조 ----------
+  // op: {emph:"all"|"B12"|"P5"|"T2.r0c1", find:"핵심 문구", style:"bold"|"underline"|"red"|"blue"|"shade"|"bold+red"…}
+  // find가 없으면 그 문단·칸 전체. 같은 문구가 여러 번 있으면 모두.
+  var EMPH = {
+    bold: { bold: true }, '굵게': { bold: true },
+    underline: { underline: true, underlineType: 'Bottom' }, '밑줄': { underline: true, underlineType: 'Bottom' },
+    italic: { italic: true }, '기울임': { italic: true },
+    red: { textColor: '#C00000' }, '빨강': { textColor: '#C00000' },
+    blue: { textColor: '#0050B4' }, '파랑': { textColor: '#0050B4' },
+    shade: { shadeColor: '#FFF2A8' }, '형광': { shadeColor: '#FFF2A8' },
+  };
+  function emphProps(style) {
+    var props = {};
+    String(style || 'bold').split(/[+,\s]+/).forEach(function (k) { var p = EMPH[k.toLowerCase()] || EMPH[k]; if (p) Object.keys(p).forEach(function (x) { props[x] = p[x]; }); });
+    if (!Object.keys(props).length) props.bold = true;
+    return JSON.stringify(props);
+  }
+  function rawText(doc, s, p) { var L = doc.getParagraphLength(s, p); return L ? String(doc.getTextRange(s, p, 0, L)) : ''; }
+  function hits(text, find) {
+    var r = []; if (!find) { return text.trim() ? [[0, text.length]] : r; }
+    for (var at = text.indexOf(find); at >= 0; at = text.indexOf(find, at + find.length)) r.push([at, find.length]);
+    return r;
+  }
+  function emphasize(doc, ops) {
+    var log = [], done = [];
+    (ops || []).forEach(function (op) {
+      var props = emphProps(op.style), id = String(op.emph || 'all'), find = op.find || '', n = 0;
+      var paras = [], cells = [];
+      if (/^B\d+$/.test(id)) { var o = outline(doc); for (var i = 0; i < o.length; i++) if (o[i].id === id) paras.push(o[i]); }
+      else if (/^P\d+$/.test(id) || /^T\d+/.test(id) || id === 'all') {
+        var m = root.SeoilFill ? root.SeoilFill.scan(doc) : { paras: [], tables: [] };
+        if (id === 'all') {
+          if (!find) { log.push('강조: 전체에는 찾을 글(find)이 필요함'); return; }
+          for (var s = 0; s < doc.getSectionCount(); s++) for (var p = 0, np = doc.getParagraphCount(s); p < np; p++) paras.push({ sec: s, para: p });
+          m.tables.forEach(function (t) { t.cells.forEach(function (c) { cells.push(c); }); });
+        } else if (id[0] === 'P') paras = m.paras.filter(function (x) { return x.id === id; });
+        else m.tables.forEach(function (t) { t.cells.forEach(function (c) { if (c.id === id || (id === t.id)) cells.push(c); }); });
+      }
+      paras.forEach(function (b) {
+        hits(rawText(doc, b.sec, b.para), find).forEach(function (h) { doc.applyCharFormat(b.sec, b.para, h[0], h[0] + h[1], props); n++; });
+      });
+      cells.forEach(function (c) {
+        if (c.path.length !== 1) return; // 표 안의 표는 아직 못 함
+        var ctrl = c.path[0].controlIndex, cnt = doc.getCellParagraphCountByPath(c.t.sec, c.t.para, JSON.stringify(c.path));
+        for (var k = 0; k < cnt; k++) {
+          var pp = c.path.slice(); pp[0] = Object.assign({}, pp[0], { cellParaIndex: k });
+          var L = doc.getCellParagraphLengthByPath(c.t.sec, c.t.para, JSON.stringify(pp));
+          var tx = L ? String(doc.getTextInCellByPath(c.t.sec, c.t.para, JSON.stringify(pp), 0, L)) : '';
+          hits(tx, find).forEach(function (h) { doc.applyCharFormatInCell(c.t.sec, c.t.para, ctrl, c.idx, k, h[0], h[0] + h[1], props); n++; });
+        }
+      });
+      if (n) done.push('강조 ' + (find ? '"' + find.slice(0, 20) + '"' : id) + (n > 1 ? ' ' + n + '곳' : ''));
+      else log.push('강조: ' + (find ? '"' + find + '"을 ' : '') + id + '에서 찾지 못함');
+    });
+    return { done: done, log: log };
+  }
+
   /** 이 문서가 본문 쓰기를 할 만한가: 단계 스타일이 3개 이상 */
   function supports(doc) { var lv = levels(doc), n = 0; ['1.', '가.', '□', '○', '-'].forEach(function (k) { if (lv[k]) n++; }); return n >= 3; }
 
-  var api = { levels: levels, outline: outline, outlineText: outlineText, apply: apply, supports: supports, HEADS: HEADS, BODY: BODY };
+  var api = { levels: levels, outline: outline, outlineText: outlineText, apply: apply, emphasize: emphasize, supports: supports, HEADS: HEADS, BODY: BODY };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SeoilWrite = api;
 })(typeof window !== 'undefined' ? window : globalThis);
