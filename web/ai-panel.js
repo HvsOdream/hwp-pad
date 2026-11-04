@@ -248,7 +248,7 @@
     if (base.fp !== m.fp.split('-').length + ':' + fileName()) { base = { fp: m.fp.split('-').length + ':' + fileName(), total: c.total }; }
     ui.form.textContent = '양식: ' + (fileName() || '열린 문서') + ' · 표 ' + m.tables.length + '개';
     var left = c.total, all = Math.max(base.total, left);
-    ui.prog.textContent = all ? ('채울 칸 ' + all + '개 중 ' + (all - left) + '개 채움 (빈칸 ' + c.empty + ' · 자리표시 ' + c.ph + (c.guide ? ' · 안내문 ' + c.guide : '') + ' 남음)') : '채울 칸이 보이지 않습니다';
+    ui.prog.textContent = '';
     ui.bar.style.width = all ? Math.round((all - left) * 100 / all) + '%' : '0';
     return m;
   }
@@ -286,7 +286,7 @@
       ]));
       return;
     }
-    say('ai', '채울 칸 ' + c.total + '개를 찾았습니다 (빈칸 ' + c.empty + ', 자리표시 ' + c.ph + (c.guide ? ', 안내문 ' + c.guide : '') + ').\n메모·녹취·사진·요청 공문을 넣거나, 무엇에 대한 문서인지 말해 주세요.' + (guide ? '\n※ 「작성방법」 안내 상자는 채우지 않습니다. 제출 전에 지워 주세요.' : ''));
+    say('ai', '메모·녹취·사진·요청 공문을 넣거나, 무엇에 대한 문서인지 말해 주세요.' + (guide ? '\n※ 「작성방법」 안내 상자는 채우지 않습니다. 제출 전에 지워 주세요.' : ''));
     var row = el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' });
     row.appendChild(el('button', { class: 'chip', text: '내 정보로 채울 수 있는 칸부터', onclick: function () { send('내 정보와 오늘 날짜로 채울 수 있는 칸부터 채워 주세요. 나머지는 하나씩 물어봐 주세요.'); } }));
     if (!profile().name) row.appendChild(el('button', { class: 'chip', text: '내 정보 입력', onclick: function () { drawSettings(); ui.set.style.display = 'flex'; } }));

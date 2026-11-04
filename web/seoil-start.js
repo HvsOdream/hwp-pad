@@ -147,7 +147,7 @@
       var m = window.SeoilFill.scan(d), left = 0;
       m.tables.forEach(function (t) { if (!t.guideBox) t.cells.forEach(function (c) { if (c.kind === 'empty' || c.kind === 'ph' || c.kind === 'guide') left++; }); });
       m.paras.forEach(function (p) { if (p.kind === 'ph') left++; });
-      return left ? '빈칸 ' + left + '개 남음' : '';
+      return left ? '작성 중' : '';
     } catch (e) { return ''; }
   }
   function snapshot(force) {
@@ -324,7 +324,7 @@
     var filledForm = window.SeoilFill.looksFilled ? window.SeoilFill.looksFilled(m) : false;
     if (n >= 2 || filledForm) {
       ui.bar.dataset.mode = filledForm ? 'rewrite' : 'fill';
-      ui.barText.textContent = filledForm ? '다 쓴 양식이네요. 이걸 바탕으로 새로 쓸까요?' : '빈칸·자리표시 ' + n + '개가 있는 문서입니다';
+      ui.barText.textContent = filledForm ? '다 쓴 양식이네요. 이걸 바탕으로 새로 쓸까요?' : '채울 칸이 있는 양식이네요';
       ui.barGo.textContent = filledForm ? '새로 쓰기' : 'AI로 채우기';
       ui.bar.classList.add('open');
     }

@@ -506,7 +506,7 @@ jobs:
               // keylock.js(defer)가 먼저 버튼 묶음을 만든 뒤에 붙는다
               setTimeout(function () {
                 mountHelp();
-                if (!seen()) setTimeout(open, 900);
+                /* 첫 화면은 서일 오피스 홈이 맡는다 — 안내는 ? 버튼으로만 */
               }, 0);
             }
             if (document.body) boot(); else document.addEventListener('DOMContentLoaded', boot);
@@ -534,7 +534,6 @@ jobs:
             `<meta name="apple-mobile-web-app-title" content="${name}">`,
             '<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">',
             '<script src="debug.js"></script>',
-            '<script src="install.js" defer></script>',
             '<script src="keylock.js" defer></script>',
             '<script src="guide.js" defer></script>',
             '<script src="seoil-form.js" defer></script>',
