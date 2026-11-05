@@ -234,6 +234,21 @@
     var D = doc() && doc().constructor;
     if (D && D.createEmpty) { try { window.rhwpStudio.openBytes(D.createEmpty().exportHwp(), '새 문서.hwp', null); } catch (e) {} }
   }
+  /** 문서 닫기: 저장 안 한 변경이 있으면 편집기가 묻고(저장·저장 안 함·취소), 닫히면 홈으로 */
+  async function closeDoc() {
+    var it = document.querySelector('[data-cmd="file:new-doc"]');
+    if (!it) return;
+    var before = doc(), name0 = fileName();
+    snapshot(false);
+    nextTag = '새 문서';
+    it.classList.remove('disabled'); it.click();
+    // 새 빈 문서로 바뀌면 홈으로. 편집기가 같은 문서 객체를 다시 쓰기도 해서 이름 바뀜도 본다.
+    // 저장 확인에서 취소하면(2분 안에 안 바뀌면) 그대로 둔다
+    for (var t0 = Date.now(); Date.now() - t0 < 120000; ) {
+      if (doc() && (doc() !== before || fileName() !== name0)) { open(); return; }
+      await new Promise(function (r) { setTimeout(r, 150); });
+    }
+  }
   /** 서일 보고서 기본 양식(표지 + Ⅰ장 + 1. □ ○ 단계 스타일)으로 새 문서 */
   async function newReport() {
     try {
@@ -448,6 +463,13 @@
         dd.insertBefore(el('div', { class: 'md-sep' }), dd.firstChild);
         dd.insertBefore(it, dd.firstChild);
       }
+      // 파일 메뉴: 「다른 이름으로 저장」 아래 「문서 닫기」(한글과 같은 Ctrl+F4)
+      var sa = dd && dd.querySelector('[data-cmd="file:save-as"]');
+      if (sa && !document.getElementById('seoil-md-close')) {
+        var ci = el('div', { class: 'md-item', id: 'seoil-md-close', onclick: function (e) { e.stopPropagation(); document.body.click(); closeDoc(); } },
+          [el('span', { class: 'md-icon' }), el('span', { class: 'md-label', text: '문서 닫기' }), el('span', { class: 'md-shortcut', text: 'Ctrl+F4' })]);
+        sa.parentNode.insertBefore(ci, sa.nextSibling);
+      }
     })();
 
     // 편집기가 뜨면: 파일을 열고 들어온 경우가 아니면 홈
@@ -479,6 +501,9 @@
     R.openBytes = function () { try { close(); } catch (e) {} return orig.apply(this, arguments); };
     R.openBytes.__seoilHome = true;
   })();
-  window.SeoilStart = { open: open, close: close, pickForm: pickForm, openForm: openForm, newDoc: newDoc, newReport: newReport, forkCopy: forkCopy };
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'F4' && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && !isOpen()) { e.preventDefault(); e.stopPropagation(); closeDoc(); }
+  }, true);
+  window.SeoilStart = { open: open, close: close, closeDoc: closeDoc, pickForm: pickForm, openForm: openForm, newDoc: newDoc, newReport: newReport, forkCopy: forkCopy };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();
