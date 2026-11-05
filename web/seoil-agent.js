@@ -94,7 +94,8 @@
     var S = window.SeoilStart; if (!S) throw new Error('홈 기능 없음');
     var before = doc();
     if (kind === 'report') await S.newReport(); else S.newDoc();
-    for (var i = 0; i < 40 && doc() === before; i++) await wait(150);
+    for (var i = 0; i < 400 && doc() === before; i++) await wait(150);
+    if (doc() === before) throw new Error('새 문서가 열리지 않았습니다 — 화면에 「저장 확인」 창이 떠 있으면 사람이 고르길 기다려 주세요');
     await wait(300); remember(); undoStack = [];
     return status();
   }
@@ -102,7 +103,8 @@
   async function rewriteCopy() {
     var before = fileName();
     await window.SeoilStart.forkCopy();
-    for (var i = 0; i < 40 && fileName() === before; i++) await wait(150);
+    for (var i = 0; i < 400 && fileName() === before; i++) await wait(150);
+    if (fileName() === before) throw new Error('사본이 열리지 않았습니다 — 화면에 「저장 확인」 창이 떠 있으면 사람이 고르길 기다려 주세요');
     remember(); undoStack = [];
     return status();
   }

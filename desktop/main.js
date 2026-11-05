@@ -203,7 +203,15 @@ async function saveDoc(target) {
   const tmp = p + '.seoil-tmp';
   await fs.promises.writeFile(tmp, Buffer.from(bytes));
   await fs.promises.rename(tmp, p);
-  return `저장했습니다: ${p}`;
+  if (p === currentPath) {
+    await inPage(`window.rhwpStudio.notifySaved ? window.rhwpStudio.notifySaved() : null`).catch(() => {});
+    return `저장했습니다: ${p}`;
+  }
+  // 다른 이름으로 저장: 저장한 파일을 다시 열어 이후 Ctrl+S가 새 파일에 쓰이게(원본 양식을 덮지 않게)
+  await inPage(`window.rhwpStudio.notifySaved ? window.rhwpStudio.notifySaved() : null`).catch(() => {});
+  sendOpen(p);
+  await inPage(`window.SeoilAgent.waitOpened(${J(path.basename(p))}, 30000)`).catch(() => {});
+  return `저장했습니다: ${p} (이제 이 파일이 열려 있고, Ctrl+S도 이 파일에 저장됩니다)`;
 }
 
 async function runTool(name, a) {
