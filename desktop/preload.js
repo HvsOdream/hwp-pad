@@ -9,6 +9,9 @@ contextBridge.exposeInMainWorld('seoilDesktop', {
   read: (token) => ipcRenderer.invoke('seoil:read', token).then((b) => new Uint8Array(b)),
   info: () => ipcRenderer.invoke('seoil:info'),
   connectClaude: () => ipcRenderer.invoke('seoil:connect-claude'),
+  disconnectClaude: () => ipcRenderer.invoke('seoil:disconnect-claude'),
+  claudeStatus: () => ipcRenderer.invoke('seoil:claude-status'),
+  copyClaudeCode: () => ipcRenderer.invoke('seoil:claude-code-cmd'),
   isDesktop: true,
 });
 

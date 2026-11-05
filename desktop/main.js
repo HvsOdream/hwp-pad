@@ -267,6 +267,9 @@ function startAgent() {
 }
 
 // 「Claude에 연결」: Claude 데스크톱 설정(claude_desktop_config.json)에 서일 오피스 통로를 넣는다.
+// Claude 데스크톱은 꺼질 때 설정 파일을 다시 써서, 켜져 있는 동안 넣은 항목을 지운다(2026-11-05 실제로 겪음).
+// 그래서 켜져 있으면 끄고 → 쓰고 → 다시 켠다. 사람에게는 버튼 하나, 확인 창 하나만.
+const { execFile } = require('child_process');
 function claudeConfigPaths() {
   const out = [];
   const roaming = process.env.APPDATA || path.join(app.getPath('home'), 'AppData', 'Roaming');
@@ -275,35 +278,85 @@ function claudeConfigPaths() {
   try { // 스토어판 Claude는 설정이 패키지 폴더 안에 있다
     for (const d of fs.readdirSync(pk)) if (/^Claude_/i.test(d)) out.push(path.join(pk, d, 'LocalCache', 'Roaming', 'Claude', 'claude_desktop_config.json'));
   } catch (e) {}
-  return out;
+  return out.filter((p) => fs.existsSync(path.dirname(p)));
 }
 function mcpEntry() {
   return { command: process.execPath, args: [mcpScript()], env: { ELECTRON_RUN_AS_NODE: '1', SEOIL_AGENT_FILE: agentFile(), SEOIL_APP_EXE: process.execPath } };
 }
-ipcMain.handle('seoil:connect-claude', async (e) => {
-  if (!win || e.sender !== win.webContents) throw new Error('forbidden');
-  const targets = claudeConfigPaths().filter((p) => fs.existsSync(path.dirname(p)));
-  const entry = mcpEntry();
-  const cc = `claude mcp add seoil-office -s user -e ELECTRON_RUN_AS_NODE=1 -e SEOIL_AGENT_FILE="${entry.env.SEOIL_AGENT_FILE}" -e SEOIL_APP_EXE="${entry.env.SEOIL_APP_EXE}" -- "${entry.command}" "${entry.args[0]}"`;
-  const r = await dialog.showMessageBox(win, {
-    type: 'question', buttons: ['연결', '취소'], defaultId: 0, cancelId: 1, title: '내 Claude와 연결',
-    message: targets.length ? 'Claude 데스크톱 설정에 서일 오피스를 더합니다.' : 'Claude 데스크톱 설치를 찾지 못했습니다.',
-    detail: (targets.length ? targets.join('\n') + '\n\nClaude 데스크톱을 완전히 껐다 켜면 서일 오피스 도구가 보입니다.\n\n' : '') + 'Claude Code에서는 이 명령을 한 번 실행하세요(연결을 누르면 클립보드에 복사):\n' + cc,
-  });
-  if (r.response !== 0) return { ok: false };
-  require('electron').clipboard.writeText(cc);
-  const written = [];
-  for (const p of targets) {
-    let cfg = {};
-    try { cfg = JSON.parse(await fs.promises.readFile(p, 'utf8')); } catch (x) { cfg = {}; }
-    if (fs.existsSync(p)) { try { await fs.promises.copyFile(p, p + '.bak-seoil'); } catch (x) {} }
-    cfg.mcpServers = cfg.mcpServers || {};
-    cfg.mcpServers['seoil-office'] = entry;
-    await fs.promises.writeFile(p, JSON.stringify(cfg, null, 2), 'utf8');
-    written.push(p);
-  }
-  return { ok: true, written, claudeCode: cc };
+function claudeCodeCmd() {
+  const e = mcpEntry();
+  return `claude mcp add seoil-office -s user -e ELECTRON_RUN_AS_NODE=1 -e SEOIL_AGENT_FILE="${e.env.SEOIL_AGENT_FILE}" -e SEOIL_APP_EXE="${e.env.SEOIL_APP_EXE}" -- "${e.command}" "${e.args[0]}"`;
+}
+function readCfg(p) { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (e) { return null; } }
+function isConnected(p) {
+  const c = readCfg(p), e = c && c.mcpServers && c.mcpServers['seoil-office'];
+  return !!(e && e.command === process.execPath && e.args && e.args[0] === mcpScript());
+}
+function ps(cmd) {
+  return new Promise((resolve) => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd],
+    { windowsHide: true, timeout: 20000 }, (err, out) => resolve(err ? '' : String(out || '').trim())));
+}
+// Claude 데스크톱 프로세스만 고른다(같은 claude.exe 이름의 Claude Code는 건드리지 않는다)
+const CLAUDE_DESKTOP = "Get-Process claude -ErrorAction SilentlyContinue | Where-Object { $_.Path -match 'AnthropicClaude|WindowsApps' }";
+async function claudeRunning() {
+  if (process.platform !== 'win32') return false;
+  const n = parseInt(await ps(`@(${CLAUDE_DESKTOP}).Count`), 10);
+  return n > 0;
+}
+async function quitClaude() {
+  await ps(`${CLAUDE_DESKTOP} | Stop-Process -Force`);
+  for (let i = 0; i < 30 && await claudeRunning(); i++) await new Promise((r) => setTimeout(r, 300));
+}
+async function startClaude() {
+  const id = await ps("(Get-StartApps | Where-Object { $_.Name -eq 'Claude' } | Select-Object -First 1).AppID");
+  if (id) { await ps(`Start-Process 'shell:AppsFolder\\${id.replace(/'/g, "''")}'`); return true; }
+  const stub = path.join(process.env.LOCALAPPDATA || '', 'AnthropicClaude', 'claude.exe');
+  if (fs.existsSync(stub)) { require('child_process').spawn(stub, [], { detached: true, stdio: 'ignore' }).unref(); return true; }
+  return false;
+}
+function writeEntry(p, on) {
+  const c = readCfg(p) || {};
+  if (fs.existsSync(p)) { try { fs.copyFileSync(p, p + '.bak-seoil'); } catch (x) {} }
+  c.mcpServers = c.mcpServers || {};
+  if (on) c.mcpServers['seoil-office'] = mcpEntry(); else delete c.mcpServers['seoil-office'];
+  fs.writeFileSync(p, JSON.stringify(c, null, 2), 'utf8');
+}
+function sender(e) { if (!win || e.sender !== win.webContents) throw new Error('forbidden'); }
+
+ipcMain.handle('seoil:claude-status', async (e) => {
+  sender(e);
+  const t = claudeConfigPaths();
+  return { installed: t.length > 0, connected: t.length > 0 && t.some(isConnected) };
 });
+ipcMain.handle('seoil:claude-code-cmd', (e) => { sender(e); require('electron').clipboard.writeText(claudeCodeCmd()); return true; });
+// on=true 연결, false 끊기
+async function setClaude(on) {
+  const targets = claudeConfigPaths();
+  if (!targets.length) return { ok: false, msg: 'Claude 데스크톱이 이 PC에 없습니다.' };
+  const running = await claudeRunning();
+  if (running) {
+    const r = await dialog.showMessageBox(win, {
+      type: 'question', buttons: [on ? '다시 시작하고 연결' : '다시 시작하고 끊기', '취소'], defaultId: 0, cancelId: 1, noLink: true,
+      title: '서일 오피스', message: 'Claude 데스크톱을 한 번 다시 시작합니다',
+      detail: 'Claude가 답을 쓰는 중이면 끝난 뒤 눌러 주세요. 대화 기록은 그대로 남습니다.',
+    });
+    if (r.response !== 0) return { ok: false, cancelled: true };
+    await quitClaude();
+  }
+  for (const p of targets) writeEntry(p, on);
+  let restarted = false;
+  if (running) restarted = await startClaude();
+  // Claude가 켜지며 설정을 다시 쓰더라도 남았는지 확인
+  if (restarted) await new Promise((r) => setTimeout(r, 4000));
+  const ok = on ? targets.some(isConnected) : !targets.some(isConnected);
+  if (!ok) return { ok: false, msg: 'Claude가 설정을 되돌렸습니다. Claude를 트레이에서 완전히 끈 뒤 다시 눌러 주세요.' };
+  const msg = on
+    ? (restarted ? '연결했습니다. Claude 데스크톱을 다시 켰습니다.' : running ? '연결했습니다. Claude 데스크톱을 켜 주세요.' : '연결했습니다. Claude 데스크톱을 켜면 서일 오피스 도구가 보입니다.')
+    : '연결을 끊었습니다.';
+  return { ok: true, connected: on, msg };
+}
+ipcMain.handle('seoil:connect-claude', async (e) => { sender(e); return setClaude(true); });
+ipcMain.handle('seoil:disconnect-claude', async (e) => { sender(e); return setClaude(false); });
 
 // 시험용(SEOIL_TEST): 통로 처리부를 바깥에서 불러 쓸 수 있게
 if (process.env.SEOIL_TEST) module.exports = { runTool, startAgent, agentFile, __setWin: (w) => { win = w; pageReady = true; } };

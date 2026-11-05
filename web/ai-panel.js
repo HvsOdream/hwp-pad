@@ -76,7 +76,14 @@
     '#seoil-ai textarea,#seoil-ai input[type=text],#seoil-ai input[type=password]{width:100%;font:inherit;font-size:13px;border:1px solid #D9DCE1;border-radius:8px;padding:8px 10px;resize:none}',
     '#seoil-ai .send{font:inherit;font-size:13px;padding:0 14px;height:40px;border:0;border-radius:8px;background:#2F5BEA;color:#fff;cursor:pointer;flex:none}#seoil-ai .send:disabled{background:#9DB2F5;cursor:default}',
     '#seoil-ai .clip{border:1px solid #D9DCE1;background:#fff;border-radius:8px;width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;flex:none;cursor:pointer}',
-    '#seoil-ai .set{padding:14px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid #ECEEF1;background:#FAFAFB;max-height:60%;overflow:auto}',
+    '#seoil-ai .set{flex:1;padding:12px 14px 16px;display:flex;flex-direction:column;gap:10px;background:#FAFAFB;overflow:auto}',
+    '#seoil-ai .card{background:#fff;border:1px solid #ECEEF1;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}',
+    '#seoil-ai .card .top{display:flex;align-items:center;gap:8px}#seoil-ai .card .top b{font-size:13px;flex:none}',
+    '#seoil-ai .card .sum{font-size:12px;color:#5F6670;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}',
+    '#seoil-ai .card .body{display:flex;flex-direction:column;gap:8px}',
+    '#seoil-ai .on-dot{color:#1E8E3E}#seoil-ai .off-dot{color:#B0B5BD}',
+    '#seoil-ai .link{border:0;background:none;color:#2F5BEA;font:inherit;font-size:12px;cursor:pointer;padding:0;text-align:left}#seoil-ai .link:hover{text-decoration:underline}',
+    '#seoil-ai .ibtn.on{background:#EEF2FD;color:#2F5BEA}',
     '#seoil-ai .set label{font-size:12px;color:#5F6670;display:flex;flex-direction:column;gap:4px}',
     '#seoil-ai .set h4{margin:0;font-size:13px}',
     '#seoil-ai .note{font-size:11px;color:#8A9099}',
@@ -169,7 +176,7 @@
     var taps = 0, tapT = 0;
     ui.title.addEventListener('click', function () {
       var now = Date.now(); taps = now - tapT < 800 ? taps + 1 : 1; tapT = now;
-      if (taps >= 5) { taps = 0; ls(LS_DEV, isDev() ? null : '1'); drawSettings(); ui.set.style.display = 'flex'; say('sys', isDev() ? '개발자 모드를 켰습니다.' : '개발자 모드를 껐습니다.'); }
+      if (taps >= 5) { taps = 0; ls(LS_DEV, isDev() ? null : '1'); say('sys', isDev() ? '개발자 모드를 켰습니다.' : '개발자 모드를 껐습니다.'); setOpen(true); }
     });
     ui.form = el('div', { style: 'font-size:12px;color:#5F6670' });
     ui.bar = el('i');
@@ -177,12 +184,11 @@
     var hd = el('div', { class: 'hd' }, [
       el('div', { class: 'row' }, [ui.title, ui.engine, el('span', { style: 'flex:1' }),
         el('button', { class: 'ibtn', title: '처음부터', onclick: function () { reset(); }, text: '새 대화' }),
-        el('button', { class: 'ibtn', title: '내 정보·설정', onclick: function () { drawSettings(); ui.set.style.display = ui.set.style.display === 'none' ? 'flex' : 'none'; }, text: '내 정보' }),
+        ui.setBtn = el('button', { class: 'ibtn', title: '내 정보·AI 코드·Claude 연결', onclick: function () { setOpen(!ui.setOn); }, text: '설정' }),
         el('button', { class: 'ibtn', title: '닫기', onclick: toggle, text: '닫기' })]),
       ui.form, ui.prog, el('div', { class: 'bar' }, [ui.bar]),
     ]);
     ui.set = el('div', { class: 'set', style: 'display:none' });
-    drawSettings();
     ui.log = el('div', { class: 'log' });
     ui.att = el('div', { class: 'att' });
     ui.file = el('input', { type: 'file', multiple: 'multiple', accept: '.hwp,.hwpx,.pdf,.png,.jpg,.jpeg,.txt,.md,image/*', style: 'display:none', onchange: onFiles });
@@ -190,8 +196,9 @@
     ui.send = el('button', { class: 'send', onclick: function () { send(); }, text: '보내기' });
     var clip = el('button', { class: 'clip', title: '자료 첨부 (메모·녹취 글, 사진, 요청 공문 hwp·pdf)', onclick: function () { ui.file.click(); } });
     clip.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5F6670" stroke-width="1.8"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7-7l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8L10.2 17.9a1.7 1.7 0 0 1-2.4-2.4l8-8"/></svg>';
-    var ft = el('div', { class: 'ft' }, [ui.att, el('div', { class: 'row', style: 'align-items:flex-end' }, [clip, ui.input, ui.send]), ui.file]);
+    var ft = ui.ft = el('div', { class: 'ft' }, [ui.att, el('div', { class: 'row', style: 'align-items:flex-end' }, [clip, ui.input, ui.send]), ui.file]);
     ui.panel = el('div', { id: 'seoil-ai' }, [hd, ui.set, ui.log, ft]);
+    ui.set.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
     ['keydown', 'keyup', 'keypress'].forEach(function (t) { ui.panel.addEventListener(t, function (e) { e.stopPropagation(); }); });
     ui.panel.addEventListener('drop', function (e) { e.preventDefault(); e.stopPropagation(); addFiles(e.dataTransfer.files); });
     ui.panel.addEventListener('dragover', function (e) { e.preventDefault(); });
@@ -202,56 +209,81 @@
   function ownKey() { return !!ls(LS_KEY); } // 개발자 모드에서 넣은 자기 키 → Claude API 직접
   function aiUrl() { return ls(LS_URL) || (ownKey() ? DEFAULT_URL : SCHOOL_URL); }
   function ready() { return isMock() || ownKey() || (!!ls(LS_CODE) && !!aiUrl()); }
-  var NOT_READY_CODE = 'AI 사용 코드가 아직 없습니다. 위의 「내 정보」를 눌러 관리자에게 받은 코드를 넣어 주세요.';
+  var NOT_READY_CODE = 'AI 사용 코드가 아직 없습니다. 위의 「설정」을 눌러 관리자에게 받은 코드를 넣어 주세요.';
   function notReady() { return (!ls(LS_CODE) || ownKey()) ? NOT_READY_CODE : '학교 AI 서버가 아직 준비되지 않았습니다. 관리자에게 알려 주세요.'; }
   function checkCode(out) {
     if (!aiUrl()) { out.textContent = '학교 AI 서버가 아직 준비되지 않았습니다.'; return; }
     out.textContent = '확인 중…';
     fetch(aiUrl().replace(/\/v1\/messages$/, '/v1/me'), { headers: { 'x-seoil-code': ls(LS_CODE) } })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status)); return j; }); })
-      .then(function (j) { out.textContent = j.name + ' 님 · 오늘 ' + j.today + ' / ' + j.daily + '회 사용'; })
+      .then(function (j) { out.textContent = j.name + ' · 오늘 ' + j.today + '/' + j.daily + '회'; })
       .catch(function (e) { out.textContent = '확인 실패: ' + (e && e.message || e); });
   }
   function mask(k) { return k ? k.slice(0, 7) + '…' + k.slice(-4) : ''; }
   function drawEngine() { ui.engine.textContent = isMock() ? '시험 모드' : (ownKey() ? '내 키' : '학교 AI'); }
+  // 설정 화면: 대화 자리를 덮는 한 장. 위 「설정」을 다시 누르거나 「← 대화로」·Esc로 닫는다.
+  function setOpen(on) {
+    ui.setOn = !!on;
+    ui.set.style.display = on ? 'flex' : 'none';
+    ui.log.style.display = on ? 'none' : '';
+    ui.ft.style.display = on ? 'none' : '';
+    ui.setBtn.classList.toggle('on', !!on);
+    if (on) drawSettings(); else drawEngine();
+  }
+  // 접히는 카드: 제목 · 한 줄 상태 · 펼치면 내용
+  function card(title, sum, body, open) {
+    var b = el('div', { class: 'body', style: open ? '' : 'display:none' }, body);
+    var t = el('button', { class: 'link', text: open ? '접기' : '바꾸기' });
+    t.addEventListener('click', function () { var o = b.style.display === 'none'; b.style.display = o ? '' : 'none'; t.textContent = o ? '접기' : '바꾸기'; });
+    var c = el('div', { class: 'card' }, [el('div', { class: 'top' }, [el('b', { text: title }), sum, t]), b]);
+    c.fold = function () { b.style.display = 'none'; t.textContent = '바꾸기'; };
+    return c;
+  }
+  function profileSum() {
+    var p = profile(), L = [p.name, p.dept, p.title].filter(Boolean);
+    return L.length ? L.join(' · ') : '아직 없음';
+  }
   function drawSettings() {
-    ui.engine.textContent = isMock() ? '시험 모드' : (ownKey() ? '내 키' : '학교 AI');
+    drawEngine();
     ui.set.innerHTML = '';
-    var p = profile(), inputs = {};
-    ui.set.appendChild(el('h4', { text: '내 정보' }));
-    ui.set.appendChild(el('div', { class: 'note', text: '신청서의 학과·성명·직위 같은 칸을 묻지 않고 채웁니다. 이 기기에만 저장됩니다.' }));
+    ui.set.appendChild(el('div', { class: 'row' }, [
+      el('button', { class: 'link', style: 'font-size:13px', text: '← 대화로', onclick: function () { setOpen(false); } }),
+      el('span', { style: 'flex:1' }),
+      el('span', { class: 'note', text: '모두 이 기기에만 저장됩니다' })]));
+
+    // 1) 내 정보
+    var p = profile(), inputs = {}, pSum = el('span', { class: 'sum', text: profileSum() });
+    var pBody = [el('div', { class: 'note', text: '신청서의 학과·성명·직위 같은 칸을 묻지 않고 채웁니다.' })];
     PROFILE_FIELDS.forEach(function (f) {
       inputs[f[0]] = el('input', { type: 'text', placeholder: f[2], value: p[f[0]] || (f[0] === 'org' ? '서일대학교' : '') });
-      ui.set.appendChild(el('label', null, [f[1], inputs[f[0]]]));
+      pBody.push(el('label', null, [f[1], inputs[f[0]]]));
     });
-    ui.set.appendChild(el('div', { class: 'row' }, [el('button', { class: 'send', style: 'height:34px', text: '내 정보 저장', onclick: function () {
+    var pCard;
+    pBody.push(el('div', { class: 'row' }, [el('button', { class: 'send', style: 'height:34px', text: '저장', onclick: function () {
       var o = {}; PROFILE_FIELDS.forEach(function (f) { var v = inputs[f[0]].value.trim(); if (v) o[f[0]] = v; });
-      ls(LS_PROFILE, JSON.stringify(o)); ui.set.style.display = 'none'; say('sys', '내 정보를 저장했습니다.');
+      ls(LS_PROFILE, JSON.stringify(o)); pSum.textContent = '✓ ' + profileSum(); pCard.fold();
     } })]));
-    // AI 사용 코드
+    pCard = card('내 정보', pSum, pBody, !profile().name);
+    ui.set.appendChild(pCard);
+
+    // 2) 학교 AI 코드
     var code = el('input', { type: 'text', placeholder: 'SEOIL-XXXX-XXXX', value: ls(LS_CODE), autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false' });
-    var codeOut = el('div', { class: 'note', text: ls(LS_CODE) ? '' : '관리자에게 받은 코드를 넣으면 AI를 쓸 수 있습니다. 이 기기에만 저장됩니다.' });
-    ui.set.appendChild(el('h4', { style: 'margin-top:6px', text: 'AI 사용 코드' }));
-    ui.set.appendChild(code);
-    ui.set.appendChild(el('div', { class: 'row' }, [
-      el('button', { class: 'send', style: 'height:34px', text: '코드 저장', onclick: function () { var v = code.value.trim().toUpperCase(); ls(LS_CODE, v || null); code.value = v; if (v) checkCode(codeOut); else codeOut.textContent = '코드를 지웠습니다.'; drawEngine(); } }),
-      el('button', { class: 'chip', text: '사용량 보기', onclick: function () { if (ls(LS_CODE)) checkCode(codeOut); } }),
-    ]));
-    ui.set.appendChild(codeOut);
-    if (ls(LS_CODE)) checkCode(codeOut);
-    // 설치판: 내 Claude(데스크톱·Claude Code)가 서일 오피스를 직접 다루게 연결
+    var cSum = el('span', { class: 'sum', text: ls(LS_CODE) ? '확인 중…' : '코드 없음' });
+    var cCard = card('학교 AI', cSum, [
+      el('div', { class: 'note', text: '관리자에게 받은 AI 사용 코드를 넣으면 AI 작성을 쓸 수 있습니다.' }),
+      code,
+      el('div', { class: 'row' }, [el('button', { class: 'send', style: 'height:34px', text: '저장', onclick: function () {
+        var v = code.value.trim().toUpperCase(); ls(LS_CODE, v || null); code.value = v;
+        if (v) { checkCode(cSum); cCard.fold(); } else cSum.textContent = '코드 없음';
+        drawEngine();
+      } })]),
+    ], !ls(LS_CODE));
+    ui.set.appendChild(cCard);
+    if (ls(LS_CODE)) checkCode(cSum);
+
+    // 3) 설치판: 내 Claude(데스크톱·Claude Code)가 서일 오피스를 다루게
     var D = window.seoilDesktop;
-    if (D && D.connectClaude) {
-      var ccOut = el('div', { class: 'note', text: '내 Claude 데스크톱·Claude Code에서 "서일 오피스로 이 양식 채워 줘"처럼 부탁하면, 이 창에서 채워지는 걸 보며 고칠 수 있습니다.' });
-      ui.set.appendChild(el('h4', { style: 'margin-top:6px', text: '내 Claude와 연결' }));
-      ui.set.appendChild(el('div', { class: 'row' }, [el('button', { class: 'send', style: 'height:34px', text: 'Claude에 연결', onclick: function () {
-        D.connectClaude().then(function (r) {
-          if (!r || !r.ok) return;
-          ccOut.textContent = (r.written.length ? 'Claude 데스크톱 설정에 넣었습니다. Claude 데스크톱을 완전히 껐다 켜세요. ' : '') + 'Claude Code용 명령은 클립보드에 복사했습니다.';
-        }).catch(function (e) { ccOut.textContent = '연결 실패: ' + (e && e.message || e); });
-      } })]));
-      ui.set.appendChild(ccOut);
-    }
+    if (D && D.connectClaude) ui.set.appendChild(claudeCard(D));
     if (!isDev()) return;
     var key = el('input', { type: 'password', placeholder: 'sk-ant-…', autocomplete: 'off' });
     var model = el('input', { type: 'text', value: ls(LS_MODEL) || DEFAULT_MODEL });
@@ -274,8 +306,53 @@
         drawSettings(); say('sys', '개발 설정을 저장했습니다.');
       } }),
       el('button', { class: 'chip', text: '칸 지도 보기', onclick: function () { var m = scan(); say('sys', m ? window.SeoilFill.mapText(m) : '양식 없음'); } }),
-      el('button', { class: 'chip', text: '개발자 모드 끄기', onclick: function () { ls(LS_DEV, null); drawSettings(); ui.set.style.display = 'none'; } }),
+      el('button', { class: 'chip', text: '개발자 모드 끄기', onclick: function () { ls(LS_DEV, null); setOpen(false); } }),
     ]));
+  }
+
+  function claudeCard(D) {
+    var sum = el('span', { class: 'sum', text: '확인 중…' });
+    var act = el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' });
+    var msg = el('div', { class: 'note' });
+    var body = [el('div', { class: 'note', text: '내 Claude 데스크톱에 "서일 오피스로 이 양식 채워 줘"라고 하면, 이 창에서 채워지는 걸 보며 직접 고칠 수 있습니다.' }), act, msg];
+    var c = card('내 Claude', sum, body, true);
+    c.querySelector('.top .link').style.display = 'none'; // 접을 것이 없다
+    function busy(b) { Array.prototype.forEach.call(act.querySelectorAll('button'), function (x) { x.disabled = b; }); }
+    function run(fn) {
+      busy(true); msg.textContent = '잠시만요…';
+      fn().then(function (r) {
+        if (r && r.cancelled) msg.textContent = '';
+        else if (r && r.msg) msg.textContent = r.msg;
+        else if (r && r.ok) msg.textContent = 'Claude 데스크톱을 트레이에서 완전히 끄고 다시 켜면 연결됩니다.'; // 0.2.0 설치판
+        draw();
+      }).catch(function (e) { msg.textContent = '실패: ' + (e && e.message || e); busy(false); });
+    }
+    function btn(cls, text, fn) { return el('button', { class: cls, style: cls === 'send' ? 'height:34px' : '', text: text, onclick: fn }); }
+    function draw() {
+      act.innerHTML = '';
+      if (!D.claudeStatus) { // 예전 설치판(0.2.0): 상태를 모른다
+        sum.textContent = '';
+        act.appendChild(btn('send', '연결', function () { run(D.connectClaude); }));
+        return;
+      }
+      D.claudeStatus().then(function (s) {
+        sum.innerHTML = '';
+        if (!s.installed) {
+          sum.textContent = 'Claude 데스크톱 없음';
+        } else if (s.connected) {
+          sum.appendChild(el('span', { class: 'on-dot', text: '● ' })); sum.appendChild(document.createTextNode('연결됨'));
+          act.appendChild(btn('chip', '연결 끊기', function () { run(D.disconnectClaude); }));
+        } else {
+          sum.appendChild(el('span', { class: 'off-dot', text: '○ ' })); sum.appendChild(document.createTextNode('연결 안 됨'));
+          act.appendChild(btn('send', '연결', function () { run(D.connectClaude); }));
+        }
+        act.appendChild(btn('link', 'Claude Code에서 쓰기 — 명령 복사', function () {
+          D.copyClaudeCode().then(function () { msg.textContent = '명령을 복사했습니다. 터미널에 붙여 넣어 한 번 실행하세요.'; });
+        }));
+      }).catch(function () { sum.textContent = ''; });
+    }
+    draw();
+    return c;
   }
 
   function testKey() {
@@ -358,7 +435,7 @@
     say('ai', '메모·녹취·사진·요청 공문을 넣거나, 무엇에 대한 문서인지 말해 주세요.' + (guide ? '\n※ 「작성방법」 안내 상자는 채우지 않습니다. 제출 전에 지워 주세요.' : ''));
     var row = el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' });
     row.appendChild(el('button', { class: 'chip', text: '내 정보로 채울 수 있는 칸부터', onclick: function () { send('내 정보와 오늘 날짜로 채울 수 있는 칸부터 채워 주세요. 나머지는 하나씩 물어봐 주세요.'); } }));
-    if (!profile().name) row.appendChild(el('button', { class: 'chip', text: '내 정보 입력', onclick: function () { drawSettings(); ui.set.style.display = 'flex'; } }));
+    if (!profile().name) row.appendChild(el('button', { class: 'chip', text: '내 정보 입력', onclick: function () { setOpen(true); } }));
     ui.log.appendChild(row);
     if (!ready()) say('sys', notReady());
   }
