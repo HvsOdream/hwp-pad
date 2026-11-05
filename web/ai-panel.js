@@ -183,7 +183,7 @@
     ui.prog = el('div', { style: 'font-size:12px;color:#5F6670' });
     var hd = el('div', { class: 'hd' }, [
       el('div', { class: 'row' }, [ui.title, ui.engine, el('span', { style: 'flex:1' }),
-        el('button', { class: 'ibtn', title: '처음부터', onclick: function () { reset(); }, text: '새 대화' }),
+        el('button', { class: 'ibtn', title: '대화를 지우고 처음부터', onclick: newChat, text: '새 대화' }),
         ui.setBtn = el('button', { class: 'ibtn', title: '내 정보·AI 코드·Claude 연결', onclick: function () { setOpen(!ui.setOn); }, text: '설정' }),
         el('button', { class: 'ibtn', title: '닫기', onclick: toggle, text: '닫기' })]),
       ui.form, ui.prog, el('div', { class: 'bar' }, [ui.bar]),
@@ -653,6 +653,13 @@
     window.SeoilStart.forkCopy().then(function () {
       setTimeout(function () { openPanel(true); S.mode = 'rewrite'; reset(false, true); }, 300);
     }, function (e) { say('err', '사본을 열지 못했습니다: ' + (e && e.message || e)); });
+  }
+  // 「새 대화」: 설정이 열려 있으면 닫고, 지운 것이 눈에 보이게 잠깐 깜빡인다(같은 첫 인사가 다시 떠서 안 눌린 것처럼 보였음)
+  function newChat() {
+    if (ui.setOn) setOpen(false);
+    reset();
+    ui.log.animate([{ opacity: 0.15 }, { opacity: 1 }], { duration: 350, easing: 'ease-out' });
+    say('sys', '새 대화를 시작했습니다.');
   }
   function reset(quiet, keepMode) { if (!keepMode) S.mode = 'fill'; S.msgs = []; S.pendingTool = null; ui.log.innerHTML = ''; base = { fp: null, total: 0 }; refreshForm(); if (!quiet) greet(); }
 
