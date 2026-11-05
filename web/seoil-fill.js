@@ -221,8 +221,14 @@
   }
 
   function apply(doc, m, ops) {
-    var log = [], done = [];
+    var log = [], done = [], drops = [];
     (ops || []).forEach(function (op) {
+      if (op.deleteTable) {
+        var dt = m.tables.filter(function (x) { return x.id === op.deleteTable; })[0];
+        if (!dt) throw new Error(op.deleteTable + ' 표가 없습니다');
+        if (!dt.top) throw new Error(op.deleteTable + ' 표는 칸 안의 표라 지울 수 없습니다');
+        drops.push(dt); return;
+      }
       if (op.rows) { fillRows(doc, m, op, log); done.push(op.rows); return; }
       if (op.cell) {
         var c = findCell(m, op.cell);
@@ -237,6 +243,14 @@
         if (!replaceInPara(doc, p, op.find, op.replace)) log.push(op.para + ': "' + op.find + '"을 찾지 못함');
         done.push(op.para);
       }
+    });
+    // 표 지우기(작성 방법 상자 등)는 맨 뒤에, 문서 뒤쪽부터 — 앞에서 지우면 뒤 표의 문단 번호가 바뀐다
+    drops.sort(function (a, b) { return a.sec !== b.sec ? b.sec - a.sec : (a.para !== b.para ? b.para - a.para : b.path[0].controlIndex - a.path[0].controlIndex); });
+    drops.forEach(function (t) {
+      doc.deleteTableControl(t.sec, t.para, t.path[0].controlIndex);
+      // 표만 있던 문단은 빈 줄로 남지 않게 지운다
+      try { if (!doc.getParagraphLength(t.sec, t.para) && doc.getParagraphCount(t.sec) > 1) doc.deleteParagraph(t.sec, t.para); } catch (e) {}
+      done.push(t.id + ' 지움');
     });
     return { done: done, log: log };
   }

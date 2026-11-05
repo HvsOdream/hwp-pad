@@ -108,6 +108,7 @@
     '- {"cell":"T1.r1c2","find":"0000 학과","replace":"AI게임융합학과"} 칸 안 자리표시만 바꿈. 띄어쓰기까지 포함해 정확히 찾을 글을 쓴다.',
     '- {"para":"P2","find":"00월 00일","replace":"11월 03일"} 본문 문단 자리표시만 바꿈.',
     '- 같은 자리표시(OOO)가 한 문단에 여러 번 있고 값이 다르면, 둘을 감싸는 더 긴 글을 find로 잡는다. 예) find "위원 OOO, 위원 OOO" → "위원 홍길동, 위원 이몽룡".',
+    '- {"deleteTable":"T5"} 표 하나를 통째로 지움(다 채운 부분의 [작성 방법] 안내 상자를 지울 때만. 사람이 지워 달라고 할 때).',
     '- {"rows":"T6","start":1,"data":[["값","값"],…]} 명단·반복 행 표. start 행부터, 그 행의 빈칸에 왼쪽부터 차례로 넣음(라벨 칸은 건너뜀). 행이 모자라면 프로그램이 늘림.',
     '- 서명·도장 칸((인), (서명))은 비워 둔다. 날짜는 사용자가 따로 말하지 않으면 오늘.',
     '',
@@ -597,9 +598,19 @@
         var e = window.SeoilWrite.emphasize(d, eops);
         r.done = r.done.concat(e.done); r.log = r.log.concat(e.log);
       }
-      var after = window.SeoilFill.scan(d), v = window.SeoilFill.verify(before, after);
+      // 표 지우기(작성 방법 상자 등)가 있으면, 지운 표(와 그 안의 표)를 뺀 원래 구조와 비교한다
+      var gone = {}; (ops || []).forEach(function (o) { if (o.deleteTable) gone[o.deleteTable] = true; });
+      var base = before;
+      if (Object.keys(gone).length) {
+        var keep = []; before.tables.forEach(function (t, i) {
+          var dead = gone[t.id] || (t.parent && Object.keys(gone).some(function (g) { return t.parent.indexOf(g + '.') === 0; }));
+          if (dead) gone[t.id] = true; else keep.push(before.fpParts[i]);
+        });
+        base = { fpParts: keep, tables: before.tables.filter(function (t) { return !gone[t.id]; }) };
+      }
+      var after = window.SeoilFill.scan(d), v = window.SeoilFill.verify(base, after);
       if (wops.length) { // 본문을 쓰면 표 순서가 밀릴 수 있다 → 원래 표가 하나도 줄지 않았는지만 본다
-        v.bad = after.tables.length < before.tables.length ? ['표가 ' + (before.tables.length - after.tables.length) + '개 사라짐'] : [];
+        v.bad = after.tables.length < base.tables.length ? ['표가 ' + (base.tables.length - after.tables.length) + '개 사라짐'] : [];
         v.ok = !v.bad.length;
       }
       if (!v.ok) {
