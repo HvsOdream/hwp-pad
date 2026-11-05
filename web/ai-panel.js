@@ -11,7 +11,7 @@
   var DEFAULT_MODEL = 'claude-sonnet-5-5';
   var DEFAULT_URL = 'https://api.anthropic.com/v1/messages';
   // 학교 AI 중계 서버(proxy/). 학교 키는 서버에만 있고, 앱은 관리자가 나눠 준 「AI 사용 코드」만 보낸다.
-  var SCHOOL_URL = window.SEOIL_AI_URL || ''; // 첫 배포 뒤 workers.dev 주소를 넣는다
+  var SCHOOL_URL = window.SEOIL_AI_URL || 'https://seoil-ai.withsky0.workers.dev/v1/messages';
   (function () {
     var m = location.search.match(/[?&]dev=([01])\b/);
     if (m) { try { if (m[1] === '1') localStorage.setItem(LS_DEV, '1'); else localStorage.removeItem(LS_DEV); } catch (e) {} }
