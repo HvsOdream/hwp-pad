@@ -17,24 +17,9 @@ function once(find, replace) {
   src = src.replace(find, () => replace)
 }
 
-// 1) 그림 복사: 바이트·크기 기억
+// 1) 그림 복사: 바이트·크기 기억 — 복사 길은 둘이다(복사 이벤트 onCopy, 메뉴·Ctrl+C 명령 copySelectedObject)
 const COPY = "        const text = this.wasm.getClipboardText() || '[그림]';\n"
-once(COPY, COPY + [
-  '        // [hwp-pad] 표 칸 안 붙여넣기용: 복사한 그림의 바이트와 크기를 기억한다',
-  "        (window as any).__hwpPadCopiedPicture = null;",
-  "        if (ref.type === 'image') {",
-  '          try {',
-  '            const pd = this.wasm.getControlImageData(ref.sec, ref.ppi, ref.ci, cellPathJson);',
-  '            const pm = this.wasm.getControlImageMime(ref.sec, ref.ppi, ref.ci, cellPathJson);',
-  '            let pw = 0, ph = 0;',
-  '            if (!cellPathJson) {',
-  '              try { const pp = this.wasm.getPictureProperties(ref.sec, ref.ppi, ref.ci); pw = pp.width; ph = pp.height; } catch { /* 그림 픽셀 크기로 */ }',
-  '            }',
-  '            (window as any).__hwpPadCopiedPicture = { bytes: new Uint8Array(pd), mime: pm, w: pw, h: ph, text };',
-  '          } catch { /* 기억 못 하면 칸 안 붙여넣기만 안 된다 */ }',
-  '        }',
-  '',
-].join('\n'))
+once(COPY, COPY + '        hwpPadRememberPicture(this.wasm, ref, cellPathJson, text);\n')
 
 // 2) 칸 안에서 붙여넣기: 기억한 그림을 HTML로
 const PASTE = '    // 내부 클립보드 텍스트 붙여넣기 (서식 보존)\n'
@@ -49,6 +34,21 @@ once(PASTE, [
 ].join('\n') + PASTE)
 
 src += `
+/** [hwp-pad] 표 칸 안 붙여넣기용: 복사한 그림의 바이트와 크기를 기억한다(그림이 아니면 지운다) */
+export function hwpPadRememberPicture(wasm: any, ref: any, cellPathJson: string, text: string): void {
+  (window as any).__hwpPadCopiedPicture = null;
+  if (!ref || ref.type !== 'image') return;
+  try {
+    const pd = wasm.getControlImageData(ref.sec, ref.ppi, ref.ci, cellPathJson);
+    const pm = wasm.getControlImageMime(ref.sec, ref.ppi, ref.ci, cellPathJson);
+    let pw = 0, ph = 0;
+    if (!cellPathJson) {
+      try { const pp = wasm.getPictureProperties(ref.sec, ref.ppi, ref.ci); pw = pp.width; ph = pp.height; } catch { /* 그림 픽셀 크기로 */ }
+    }
+    (window as any).__hwpPadCopiedPicture = { bytes: new Uint8Array(pd), mime: pm, w: pw, h: ph, text };
+  } catch { /* 기억 못 하면 칸 안 붙여넣기만 안 된다 */ }
+}
+
 /** [hwp-pad] 기억해 둔 그림을 <img> HTML로 만들어 칸 안 커서 자리에 붙인다. 크기는 원본 그림 크기(없으면 픽셀 크기). */
 async function hwpPadPastePictureInCell(this: any, pic: { bytes: Uint8Array; mime: string; w: number; h: number }, hasSelection: boolean): Promise<void> {
   try {
@@ -79,4 +79,13 @@ async function hwpPadPastePictureInCell(this: any, pic: { bytes: Uint8Array; mim
 }
 `
 writeFileSync(p, src)
+
+// 3) 명령 복사 길(input-handler.ts copySelectedObject)
+const p2 = join(dir, 'input-handler.ts')
+let src2 = readFileSync(p2, 'utf8')
+const COPY2 = "          const text = this.wasm.getClipboardText() || '[그림]';\n"
+const n2 = src2.split(COPY2).length - 1
+if (n2 !== 1) throw new Error(`input-handler.ts: expected 1 match, found ${n2}`)
+src2 = src2.replace(COPY2, () => COPY2 + '          _keyboard.hwpPadRememberPicture(this.wasm, ref, cellPathJson, text);\n')
+writeFileSync(p2, src2)
 console.log('[hwp-pad] picture-paste-cell: ok')
