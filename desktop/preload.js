@@ -61,10 +61,17 @@ webFrame.executeJavaScript(`(function () {
     var t = setInterval(function () { if (flush()) { clearInterval(t); waiting = false; } }, 300);
   }
   // 설치판에서는 브라우저용 안내(설치 배너·단축키 모드)가 필요 없다
-  var css = document.createElement('style');
-  css.textContent = '#hwppad-install,#hwppad-keylock{display:none!important}';
-  (document.head || document.documentElement).appendChild(css);
+  // 주의: 이 글은 문서가 만들어지기 전에 돈다(document.documentElement가 아직 없음).
+  // 예전에는 여기서 바로 붙이다 오류가 나 아래 boot()까지 못 가서, 설치판이 연 파일이 끝내 열리지 않았다(2026-11-05).
+  function hideBrowserBits() {
+    try {
+      var css = document.createElement('style');
+      css.textContent = '#hwppad-install,#hwppad-keylock{display:none!important}';
+      (document.head || document.documentElement).appendChild(css);
+    } catch (e) {}
+  }
   function boot() {
+    hideBrowserBits();
     var t = setInterval(function () { if (window.rhwpStudio && window.rhwpStudio.openBytes) { clearInterval(t); D.ready(); } }, 300);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

@@ -111,7 +111,7 @@
   /** 문서가 바뀌기를 기다린다(설치판이 파일을 열 때) */
   async function waitOpened(name, ms) {
     var t = Date.now();
-    while (Date.now() - t < (ms || 60000)) { if (doc() && fileName() === name) { await wait(300); remember(); undoStack = []; return status(); } await wait(200); }
+    while (Date.now() - t < (ms || 60000)) { if (doc() && fileName() === name) { await wait(300); try { window.SeoilStart && window.SeoilStart.close(); } catch (e) {} remember(); undoStack = []; return status(); } await wait(200); }
     throw new Error('문서가 열리지 않았습니다(저장 확인 창이 떠 있는지 화면을 봐 주세요)');
   }
   function exportBytes(fmt) {

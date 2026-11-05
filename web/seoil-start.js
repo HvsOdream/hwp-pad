@@ -470,6 +470,15 @@
     })();
   }
 
+  // 바깥에서 문서가 열리면(설치판: 탐색기 더블클릭·내 Claude) 홈 화면을 닫는다 — 안 그러면 열린 문서가 홈 뒤에 가려진다
+  (function hookOpen() {
+    var R = window.rhwpStudio;
+    if (!R || typeof R.openBytes !== 'function') return setTimeout(hookOpen, 300);
+    if (R.openBytes.__seoilHome) return;
+    var orig = R.openBytes;
+    R.openBytes = function () { try { close(); } catch (e) {} return orig.apply(this, arguments); };
+    R.openBytes.__seoilHome = true;
+  })();
   window.SeoilStart = { open: open, close: close, pickForm: pickForm, openForm: openForm, newDoc: newDoc, newReport: newReport, forkCopy: forkCopy };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();

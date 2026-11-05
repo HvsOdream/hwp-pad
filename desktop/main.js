@@ -96,7 +96,8 @@ function createWindow() {
     if (input.key === 'F5' && input.control && input.shift) { win.webContents.reloadIgnoringCache(); e.preventDefault(); }
   });
 
-  win.webContents.on('did-start-loading', () => { pageReady = false; });
+  // 페이지가 새로 뜰 때만(본 창 이동) 준비 상태를 되돌린다 — 안쪽 틀(iframe)이 불러올 때는 그대로
+  win.webContents.on('did-start-navigation', (_e, _url, inPlace, isMain) => { if (isMain && !inPlace) pageReady = false; });
   win.webContents.on('did-fail-load', (_e, code, desc, url, isMain) => {
     if (!isMain || code === -3) return;
     dialog.showMessageBox(win, {
@@ -224,8 +225,9 @@ async function runTool(name, a) {
       if (!isDoc(a.path) || !fs.existsSync(a.path)) throw new Error('없는 파일이거나 한글 문서(.hwp/.hwpx)가 아닙니다: ' + a.path);
       const p = path.resolve(a.path);
       sendOpen(p);
-      if (win) win.focus();
-      await inPage(`window.SeoilAgent.waitOpened(${J(path.basename(p))}, 90000)`);
+      if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+      // 바깥 통로가 60초 안에 답을 기다리므로 그 안에 끝낸다
+      await inPage(`window.SeoilAgent.waitOpened(${J(path.basename(p))}, 40000)`);
       return await inPage('window.SeoilAgent.read()');
     }
     case 'new_document': await inPage(`window.SeoilAgent.newDocument(${J(a.kind === 'blank' ? 'blank' : 'report')})`); currentPath = null; return await inPage('window.SeoilAgent.read()');
