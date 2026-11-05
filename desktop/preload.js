@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('seoilDesktop', {
   write: (token, bytes) => ipcRenderer.invoke('seoil:write', token, bytes),
   read: (token) => ipcRenderer.invoke('seoil:read', token).then((b) => new Uint8Array(b)),
   info: () => ipcRenderer.invoke('seoil:info'),
+  connectClaude: () => ipcRenderer.invoke('seoil:connect-claude'),
   isDesktop: true,
 });
 

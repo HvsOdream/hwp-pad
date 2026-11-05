@@ -239,6 +239,19 @@
     ]));
     ui.set.appendChild(codeOut);
     if (ls(LS_CODE)) checkCode(codeOut);
+    // 설치판: 내 Claude(데스크톱·Claude Code)가 서일 오피스를 직접 다루게 연결
+    var D = window.seoilDesktop;
+    if (D && D.connectClaude) {
+      var ccOut = el('div', { class: 'note', text: '내 Claude 데스크톱·Claude Code에서 "서일 오피스로 이 양식 채워 줘"처럼 부탁하면, 이 창에서 채워지는 걸 보며 고칠 수 있습니다.' });
+      ui.set.appendChild(el('h4', { style: 'margin-top:6px', text: '내 Claude와 연결' }));
+      ui.set.appendChild(el('div', { class: 'row' }, [el('button', { class: 'send', style: 'height:34px', text: 'Claude에 연결', onclick: function () {
+        D.connectClaude().then(function (r) {
+          if (!r || !r.ok) return;
+          ccOut.textContent = (r.written.length ? 'Claude 데스크톱 설정에 넣었습니다. Claude 데스크톱을 완전히 껐다 켜세요. ' : '') + 'Claude Code용 명령은 클립보드에 복사했습니다.';
+        }).catch(function (e) { ccOut.textContent = '연결 실패: ' + (e && e.message || e); });
+      } })]));
+      ui.set.appendChild(ccOut);
+    }
     if (!isDev()) return;
     var key = el('input', { type: 'password', placeholder: 'sk-ant-…', autocomplete: 'off' });
     var model = el('input', { type: 'text', value: ls(LS_MODEL) || DEFAULT_MODEL });
@@ -578,6 +591,6 @@
     return new Promise(function (res) { setTimeout(function () { res(r); }, 500); });
   }
 
-  window.SeoilAI = { toggle: toggle, open: openPanel, reset: reset, send: send, addFiles: addFiles, refresh: refreshForm, rewrite: rewrite, reformatAll: reformatAll, applyOps: applyOps, state: S };
+  window.SeoilAI = { toggle: toggle, open: openPanel, reset: reset, send: send, addFiles: addFiles, refresh: refreshForm, rewrite: rewrite, reformatAll: reformatAll, applyOps: applyOps, state: S, system: SYSTEM };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();

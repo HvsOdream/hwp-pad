@@ -1,7 +1,7 @@
 {
   "name": "seoil-office-desktop",
   "productName": "서일 오피스",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "서일 오피스 — 한글(HWP) 문서 편집 + AI 작성 도우미 (윈도우 설치판)",
   "author": "HvsOdream",
   "license": "MIT",
@@ -20,7 +20,8 @@
     "executableName": "SeoilOffice",
     "artifactName": "SeoilOffice-Setup-${version}.${ext}",
     "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "preload.js", "package.json"],
+    "files": ["main.js", "preload.js", "mcp.js", "package.json"],
+    "asarUnpack": ["mcp.js"],
     "win": { "target": ["nsis"], "icon": "build/icon.png" },
     "nsis": {
       "oneClick": false,
