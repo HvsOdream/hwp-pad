@@ -62,6 +62,11 @@
     '#seoil-home .row .nm{flex:1;min-width:0;font:inherit;font-size:14px;color:#1C1F23;text-align:left;background:none;border:0;padding:6px 0;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
     '#seoil-home .row .nm:hover{color:#2F5BEA}',
     '#seoil-home .when{font-size:12px;color:#6B7280;flex:none}',
+    '#seoil-home .tc.pin{position:relative;cursor:pointer}',
+    '#seoil-home .tc .unpin{position:absolute;top:6px;right:6px;width:26px;height:26px;border:0;border-radius:6px;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}',
+    '#seoil-home .tc .unpin:hover{background:#F1F2F4}',
+    '#seoil-home .undo{flex:1;display:flex;align-items:center;gap:12px;font-size:13px;color:#5F6670}',
+    '#seoil-home .undo-b{font:inherit;font-size:13px;font-weight:700;color:#2F5BEA;background:#EEF2FD;border:0;border-radius:6px;padding:5px 10px;cursor:pointer}',
     '#seoil-home .x{width:36px;height:36px;border:0;background:transparent;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none}',
     '#seoil-home .x:hover{background:#F4F5F7}',
     '#seoil-home .empty{border:2px dashed #D5D9DF;border-radius:12px;padding:28px 20px;text-align:center;font-size:13px;color:#5F6670;line-height:1.6}',
@@ -286,6 +291,8 @@
   function drawForms() {
     list(FORMS).then(function (forms) {
       var q = norm(S.q);
+      drawPinned(forms.filter(function (f) { return f.pinned; }));
+      forms = forms.filter(function (f) { return !f.pinned; });
       ui.tabs.innerHTML = '';
       if (forms.length) ['전체'].concat(DEPTS).forEach(function (t) {
         var n = t === '전체' ? forms.length : forms.filter(function (f) { return f.dept === t; }).length;
@@ -307,12 +314,52 @@
             try { busy(true); await openForm(f.bytes, f.name); busy(false); } catch (e) { busy(false, e.message || String(e)); }
           } }),
           el('span', { class: 'when', text: ago(f.at) }),
-          el('button', { type: 'button', class: 'x', 'aria-label': '내 양식에서 지우기', title: '내 양식에서 지우기', onclick: function () {
-            update(FORMS, function (l) { return l.filter(function (x) { return x.name !== f.name; }); }).then(drawForms);
+          el('button', { type: 'button', class: 'x', 'aria-label': '기본 양식으로 올리기', title: '기본 양식으로 올리기(위 「서일 기본 양식」에 고정)', onclick: function () {
+            setPinned(f.name, true);
+          } }, [svg('<path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/>', '#6B7280')]),
+          el('button', { type: 'button', class: 'x', 'aria-label': '내 양식에서 지우기', title: '내 양식에서 지우기', onclick: function (e) {
+            askRemove(e.currentTarget.parentNode, f);
           } }, [svg('<path d="M6 6l12 12M18 6L6 18"/>', '#6B7280')]),
         ]));
       });
     });
+  }
+
+  // 내 양식 → 기본 양식 고정(이 기기). 고정한 양식은 「서일 기본 양식」 줄에 카드로 서고, 내 양식 목록에서는 빠진다.
+  function setPinned(name, on) {
+    return update(FORMS, function (l) { l.forEach(function (x) { if (x.name === name) x.pinned = on; }); return l; }).then(drawForms);
+  }
+  function drawPinned(pins) {
+    if (!ui.tpls) return;
+    Array.prototype.slice.call(ui.tpls.querySelectorAll('.pin')).forEach(function (n) { n.remove(); });
+    pins.forEach(function (f) {
+      var card = el('div', { class: 'tc pin', role: 'button', tabindex: '0', title: f.name, onclick: async function () {
+        try { busy(true); await openForm(f.bytes, f.name); busy(false); } catch (e) { busy(false, e.message || String(e)); }
+      } }, [
+        el('span', { class: 'thumb', 'aria-hidden': 'true', html: '<i class="h"></i><i class="l1"></i><i class="l2"></i><i class="l2 s"></i><i class="l1"></i>' }),
+        el('span', { class: 'tt' }, [el('b', { text: stem(f.name) }), el('small', { text: (f.dept || '') + ' · 내 양식에서 고정' })]),
+        el('button', { type: 'button', class: 'unpin', title: '고정 풀기(내 양식으로 내리기)', 'aria-label': '고정 풀기', onclick: function (e) { e.stopPropagation(); setPinned(f.name, false); } }, [svg('<path d="M6 6l12 12M18 6L6 18"/>', '#9AA0A8')]),
+      ]);
+      ui.tpls.appendChild(card);
+    });
+  }
+  // 지우기는 바로 하지 않는다: 그 줄에 「지웠습니다 · 되돌리기」를 6초 보여 주고 그동안 안 누르면 지운다
+  function askRemove(row, f) {
+    if (!row || row.dataset.removing) return;
+    row.dataset.removing = '1';
+    var kids = Array.prototype.slice.call(row.childNodes);
+    kids.forEach(function (k) { k.style.display = 'none'; });
+    var timer = null;
+    var bar = el('span', { class: 'undo' }, [
+      el('span', { text: '「' + stem(f.name) + '」을 내 양식에서 지웁니다' }),
+      el('button', { type: 'button', class: 'undo-b', text: '되돌리기', onclick: function () {
+        clearTimeout(timer); bar.remove(); kids.forEach(function (k) { k.style.display = ''; }); delete row.dataset.removing;
+      } }),
+    ]);
+    row.appendChild(bar);
+    timer = setTimeout(function () {
+      update(FORMS, function (l) { return l.filter(function (x) { return x.name !== f.name; }); }).then(drawForms);
+    }, 6000);
   }
 
   function drawRecent() {
@@ -391,7 +438,7 @@
       ui.msg,
       el('section', { class: 'tpl' }, [
         el('h2', { text: '서일 기본 양식' }),
-        el('div', { class: 'tpls' }, [
+        ui.tpls = el('div', { class: 'tpls' }, [
           el('button', { type: 'button', class: 'tc', onclick: newReport, 'aria-label': '보고서 양식으로 새 문서' }, [
             el('span', { class: 'thumb', 'aria-hidden': 'true', html: '<i class="bx"><b></b><s></s></i><i class="h"></i><i class="l1"></i><i class="l2"></i><i class="l2 s"></i><i class="l1"></i><i class="l2"></i>' }),
             el('span', { class: 'tt' }, [el('b', { text: '보고서' }), el('small', { text: '표지 · Ⅰ. 장 · 1. 절 · □ ○ - 개조식' })]),
