@@ -71,7 +71,7 @@
       ops = ops.filter(function (op) { var t = targetOf(op); if (t && he.indexOf(t) >= 0) { skipped.push(t); return false; } return true; });
       if (!ops.length) return { ok: false, result: '모두 사람이 고친 칸이라 건너뜀: ' + skipped.join(', ') + ' (덮어쓰려면 force:true — 사람에게 먼저 물어볼 것)' };
     }
-    if (window.SeoilAI) { window.SeoilAI.open(true); }
+    if (window.SeoilAI) { window.SeoilAI.open(true); if (window.SeoilAI.settings) window.SeoilAI.settings(false); } // 고친 기록(✓)이 보이게 설정 화면은 닫는다
     try { undoStack.push({ snap: d.saveSnapshot(), name: fileName() }); if (undoStack.length > 20) undoStack.shift(); } catch (e) {}
     var res = window.SeoilAI ? window.SeoilAI.applyOps(ops, opt.note ? 'Claude: ' + opt.note : null) : '패널 없음';
     remember();

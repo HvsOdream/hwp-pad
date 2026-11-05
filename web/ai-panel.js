@@ -675,6 +675,6 @@
     return new Promise(function (res) { setTimeout(function () { res(r); }, 500); });
   }
 
-  window.SeoilAI = { toggle: toggle, open: openPanel, reset: reset, send: send, addFiles: addFiles, refresh: refreshForm, rewrite: rewrite, reformatAll: reformatAll, applyOps: applyOps, state: S, system: SYSTEM };
+  window.SeoilAI = { toggle: toggle, open: openPanel, reset: reset, send: send, addFiles: addFiles, refresh: refreshForm, rewrite: rewrite, reformatAll: reformatAll, applyOps: applyOps, state: S, system: SYSTEM, settings: function (on) { if (ui.set) setOpen(on); } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();
