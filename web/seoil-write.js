@@ -277,6 +277,8 @@
     red: { textColor: '#C00000' }, '빨강': { textColor: '#C00000' },
     blue: { textColor: '#0050B4' }, '파랑': { textColor: '#0050B4' },
     shade: { shadeColor: '#FFF2A8' }, '형광': { shadeColor: '#FFF2A8' },
+    // 보통: 양식의 예시 글씨(기울임·파랑·회색)를 지우고 쓴 글을 본문 글씨로
+    plain: { bold: false, italic: false, underline: false, textColor: '#000000' }, '보통': { bold: false, italic: false, underline: false, textColor: '#000000' },
   };
   function emphProps(style) {
     var props = {};

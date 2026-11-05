@@ -131,7 +131,7 @@
     '',
     '[부분 강조 — 사용자가 강조·굵게·밑줄·색을 부탁할 때]',
     '- 강조 op: {"emph":"B12","find":"핵심 문구","style":"bold"}. emph는 문단(B12·P5)이나 칸(T2.r0c1), 어디든이면 "all"(이때 find 필수). find가 없으면 그 문단·칸 전체.',
-    '- style: bold(굵게), underline(밑줄), red(빨강), blue(파랑), shade(형광), italic. 섞을 때는 "bold+underline".',
+    '- style: bold(굵게), underline(밑줄), red(빨강), blue(파랑), shade(형광), italic, plain(보통: 예시 글씨의 기울임·색을 지우고 본문 글씨로). find 없이 P·T id만 주면 그 문단·칸 전체. 섞을 때는 "bold+underline".',
     '- 알아서 고르라고 하면 문서를 읽고 핵심만 고른다: 한 □ 문단에 1곳, 문서 전체 5~12곳. 문장 통째보다 핵심 낱말·수치·결론 구절(2~15자). 사용자가 따로 말하지 않으면 bold. 글자는 바꾸지 않는다.',
     '- find는 문서에 있는 글자 그대로(띄어쓰기까지) 쓴다.',
     '',
