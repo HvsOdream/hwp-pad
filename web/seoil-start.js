@@ -254,6 +254,17 @@
       await new Promise(function (r) { setTimeout(r, 150); });
     }
   }
+  /** 기본 양식 파일(web/forms)을 양식으로 연다 — 내 양식에는 따로 남기지 않는다 */
+  async function openBuiltin(file, name) {
+    try {
+      busy(true);
+      var r = await fetch('forms/' + encodeURIComponent(file));
+      if (!r.ok) throw new Error('양식을 받지 못했습니다');
+      await openBytes(new Uint8Array(await r.arrayBuffer()), name, '양식');
+      busy(false); close();
+      setTimeout(function () { if (window.SeoilAI) { window.SeoilAI.open(true); window.SeoilAI.reset(); } }, 300);
+    } catch (e) { busy(false, e.message || String(e)); }
+  }
   /** 서일 보고서 기본 양식(표지 + Ⅰ장 + 1. □ ○ 단계 스타일)으로 새 문서 */
   async function newReport() {
     try {
@@ -442,6 +453,10 @@
           el('button', { type: 'button', class: 'tc', onclick: newReport, 'aria-label': '보고서 양식으로 새 문서' }, [
             el('span', { class: 'thumb', 'aria-hidden': 'true', html: '<i class="bx"><b></b><s></s></i><i class="h"></i><i class="l1"></i><i class="l2"></i><i class="l2 s"></i><i class="l1"></i><i class="l2"></i>' }),
             el('span', { class: 'tt' }, [el('b', { text: '보고서' }), el('small', { text: '표지 · Ⅰ. 장 · 1. 절 · □ ○ - 개조식' })]),
+          ]),
+          el('button', { type: 'button', class: 'tc', onclick: function () { openBuiltin('회의록_혁신.hwpx', '회의록(양식).hwpx'); }, 'aria-label': '회의록 양식(혁신) 열기' }, [
+            el('span', { class: 'thumb', 'aria-hidden': 'true', html: '<i class="h"></i><i class="l1"></i><i class="l1"></i><i class="l2"></i><i class="l1"></i><i class="l2 s"></i>' }),
+            el('span', { class: 'tt' }, [el('b', { text: '회의록' }), el('small', { text: '혁신 · 프로그램명·회의 일시·안건·내용·참석자 서명' })]),
           ]),
         ]),
       ]),
