@@ -97,20 +97,18 @@ async function hwpPadStartIn(): Promise<any> {
 
 patch(fsa, [
   // 열기 대화상자: 같은 id로 폴더를 기억하고, 저장 폴더/문서 폴더에서 시작
+  // (rhwp 판마다 types 줄이 달라서 머리 세 줄만 찾고, id·startIn은 any 펼치기로 끼운다)
   [
     `    const handles = await windowLike.showOpenFilePicker!({
       excludeAcceptAllOption: true,
       multiple: false,
-      types: HWP_OPEN_PICKER_TYPES,
-    });`,
+`,
     `    const handles = await windowLike.showOpenFilePicker!({
       excludeAcceptAllOption: true,
       multiple: false,
-      types: HWP_OPEN_PICKER_TYPES,
       // [hwp-pad] 열기/저장이 같은 '문서 폴더'를 기억한다
-      id: 'hwp-pad-documents',
-      startIn: await hwpPadStartIn(),
-    } as any);`,
+      ...({ id: 'hwp-pad-documents', startIn: await hwpPadStartIn() } as any),
+`,
   ],
   // 저장 대화상자: 같은 id + 시작 폴더
   [

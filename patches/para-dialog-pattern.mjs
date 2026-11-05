@@ -18,6 +18,11 @@ const REPLACE = [
 ].join('\n')
 const src = readFileSync(p, 'utf8')
 const n = src.split(FIND).length - 1
+// rhwp 원본이 같은 문제를 고친 판(배경이 solid일 때만 무늬를 비교)이면 할 일이 없다
+if (n === 0 && src.includes("newFillType !== (p.fillType ?? 'none') || (newFillType === 'solid'")) {
+  console.log('[hwp-pad] para-dialog-pattern: 원본에서 이미 고쳐짐 — 건너뜀')
+  process.exit(0)
+}
 if (n !== 1) throw new Error(`para-shape-dialog.ts: expected exactly 1 match, found ${n}`)
 writeFileSync(p, src.replace(FIND, () => REPLACE))
 console.log('[hwp-pad] para-dialog-pattern: ok')
