@@ -17,8 +17,14 @@
   function trimLabel(s) { return String(s || '').replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, ''); }
 
   // ---------- 읽기 ----------
+  // getObjects()의 para는 문서 전체에서 센 번호다. 구역 시작 번호는 구역별 문단 수를 쌓아 구한다
+  // (getSectionStarts()는 [0]만 돌려줘 둘째 구역부터 표가 지도에서 빠졌다 — 2026-11-05 충원율 계획서).
   function sectionStarts(doc) {
-    try { var s = J(doc.getSectionStarts()); if (Array.isArray(s) && s.length) return s.map(function (x) { return typeof x === 'number' ? x : (x.para || x.start || 0); }); } catch (e) {}
+    try {
+      var n = doc.getSectionCount(), out = [], acc = 0;
+      for (var i = 0; i < n; i++) { out.push(acc); acc += doc.getParagraphCount(i); }
+      if (out.length) return out;
+    } catch (e) {}
     return [0];
   }
   function toLocal(starts, globalPara) {
