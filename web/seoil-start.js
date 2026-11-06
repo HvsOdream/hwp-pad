@@ -445,6 +445,16 @@
       } else parts.push('웹(브라우저)');
     } catch (e) {}
     if (ui.ver) ui.ver.textContent = parts.join(' · ');
+    // 앱(iOS)에서 파일 열기 진단 로그가 있으면 「앱 로그」 버튼
+    var N = window.__seoilNative;
+    if (N && N.log && N.log().length && ui.ver) {
+      ui.ver.appendChild(el('button', { type: 'button', style: 'font:inherit;margin-left:10px;padding:2px 8px;border:1px solid #D5D9DF;border-radius:8px;background:#fff;color:#4B5260;cursor:pointer', text: '앱 로그', onclick: function (e) {
+        e.stopPropagation();
+        var t = N.log().join('\n');
+        try { navigator.clipboard.writeText(t); } catch (err) {}
+        alert(t.slice(-1500));
+      } }));
+    }
   }
 
   function build() {

@@ -98,24 +98,42 @@
     }
   }
 
-  var pending = null;
+  // 진단: 무슨 일이 있었는지 이 기기에 남긴다(홈 화면 버전 줄에서 「앱 로그」로 봄)
+  var LOGKEY = 'seoil.native.log';
+  function log(msg) {
+    var line = new Date().toISOString().slice(5, 19) + ' ' + msg;
+    try { var a = JSON.parse(localStorage.getItem(LOGKEY) || '[]'); a.push(line); localStorage.setItem(LOGKEY, JSON.stringify(a.slice(-30))); } catch (e) {}
+    console.log('[seoil-native] ' + msg);
+  }
+  log('bridge start plugins=' + Object.keys(C.Plugins || {}).join(',') + ' nativePromise=' + (typeof C.nativePromise));
+
+  var pending = null, lastUrl = '', lastAt = 0;
   async function openUrl(url) {
+    // 앱이 파일과 함께 켜지면 getLaunchUrl과 appUrlOpen이 같은 URL을 두 번 준다 → 한 번만
+    if (url === lastUrl && Date.now() - lastAt < 8000) { log('dup skipped'); return; }
+    lastUrl = url; lastAt = Date.now();
+    log('url ' + url.slice(-80));
     if (!/\.(hwpx?|hml)$/i.test(url.split('?')[0])) return;
     var open = window.rhwpStudio && window.rhwpStudio.openBytes;
-    if (typeof open !== 'function') { pending = url; return; } // 편집기 준비 전이면 보류
+    if (typeof open !== 'function') { pending = url; log('editor not ready, pending'); return; } // 편집기 준비 전이면 보류
     var name = nameOf(url);
     try {
       url = await moveOutOfInbox(url, name);
       var r = await FS.readFile({ path: url });
-      open(b64ToBytes(r.data), name, nativeHandle(url, name));
+      var bytes = b64ToBytes(r.data);
+      log('read ok ' + name + ' ' + bytes.length + 'B');
+      await open(bytes, name, nativeHandle(url, name));
+      log('opened ' + name);
     } catch (e) {
-      console.error('[seoil-native] open failed', url, e);
-      alert('파일을 열지 못했습니다: ' + name + '\n' + (e && e.message || e));
+      log('open FAILED ' + name + ': ' + (e && (e.message || e.errorMessage) || JSON.stringify(e)));
+      alert('파일을 열지 못했습니다: ' + name + '\n' + (e && (e.message || e.errorMessage) || JSON.stringify(e)));
     }
   }
 
-  listen('App', 'appUrlOpen', function (ev) { if (ev && ev.url) openUrl(ev.url); });
-  call('App', 'getLaunchUrl').then(function (r) { if (r && r.url) openUrl(r.url); }).catch(function () {});
+  listen('App', 'appUrlOpen', function (ev) { log('appUrlOpen ' + JSON.stringify(ev).slice(0, 120)); if (ev && ev.url) openUrl(ev.url); });
+  call('App', 'getLaunchUrl').then(function (r) { log('launchUrl ' + JSON.stringify(r).slice(0, 120)); if (r && r.url) openUrl(r.url); }).catch(function (e) { log('getLaunchUrl err ' + (e && e.message || e)); });
+  window.addEventListener('error', function (ev) { log('js error: ' + (ev.message || '') + ' @' + (ev.filename || '').split('/').pop() + ':' + ev.lineno); });
+  window.addEventListener('unhandledrejection', function (ev) { var r = ev.reason; log('unhandled: ' + (r && (r.message || r.errorMessage) || JSON.stringify(r)).slice(0, 200)); });
   // 편집기가 늦게 뜨는 경우: openBytes가 생기면 보류분 처리
   var t = setInterval(function () {
     if (pending && window.rhwpStudio && typeof window.rhwpStudio.openBytes === 'function') { var u = pending; pending = null; openUrl(u); }
@@ -126,5 +144,5 @@
   document.addEventListener('DOMContentLoaded', function () {
     ['hwppad-install', 'hwppad-keylock'].forEach(function (id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
   });
-  window.__seoilNative = { openUrl: openUrl, nativeHandle: nativeHandle, call: call };
+  window.__seoilNative = { openUrl: openUrl, nativeHandle: nativeHandle, call: call, log: function () { try { return JSON.parse(localStorage.getItem(LOGKEY) || '[]'); } catch (e) { return []; } } };
 })();
