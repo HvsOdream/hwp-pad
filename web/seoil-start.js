@@ -25,6 +25,8 @@
     '#seoil-home .me{font:inherit;font-size:13px;height:40px;padding:0 12px;border:0;background:#EEF2FD;border-radius:10px;color:#2F5BEA;cursor:pointer}',
     '#seoil-home .back{font:inherit;font-size:13px;height:40px;padding:0 12px;border:1px solid #D5D9DF;background:#fff;border-radius:10px;color:#1C1F23;cursor:pointer}',
     '#seoil-home main{max-width:1080px;margin:0 auto;padding:40px 24px 56px;display:flex;flex-direction:column;gap:28px}',
+    '#seoil-home .ver{max-width:1080px;margin:0 auto;padding:0 24px 28px;font-size:12px;color:#8A919B;text-align:center;cursor:pointer;user-select:none}',
+    '#seoil-home .ver:hover{color:#4B5260}',
     '#seoil-home h1{margin:0;font-size:30px;font-weight:700;letter-spacing:-.5px;text-align:center}',
     '#seoil-home .search{width:100%;max-width:720px;margin:0 auto;display:flex;align-items:center;gap:12px;border:2px solid #1C1F23;border-radius:14px;padding:0 18px;height:58px;background:#fff}',
     '#seoil-home .search input{border:0;font:inherit;font-size:17px;flex:1;outline:none;color:#1C1F23;background:transparent;min-width:0}',
@@ -428,6 +430,23 @@
     }
   }
 
+  // ---------- 버전 줄: 웹 빌드(SEOIL_BUILD) + 앱 껍데기(iOS/윈도우) 버전을 한 줄로 ----------
+  async function drawVersion() {
+    var w = window.SEOIL_BUILD || {};
+    var parts = ['서일 오피스 v' + (w.version || '?')];
+    if (w.build) parts.push('웹 빌드 ' + w.build + ' (' + (w.sha || '') + (w.date ? ', ' + w.date.slice(5, 10).replace('-', '/') : '') + ')');
+    try {
+      if (isApp && window.Capacitor.nativePromise) {
+        var a = await window.Capacitor.nativePromise('App', 'getInfo', {});
+        if (a && a.version) parts.push('iOS 앱 ' + a.version + ' (' + a.build + ')');
+      } else if (window.seoilDesktop && window.seoilDesktop.info) {
+        var d = await window.seoilDesktop.info();
+        if (d && d.version) parts.push('윈도우 설치판 ' + d.version);
+      } else parts.push('웹(브라우저)');
+    } catch (e) {}
+    if (ui.ver) ui.ver.textContent = parts.join(' · ');
+  }
+
   function build() {
     var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
     ui.msg = el('div', { class: 'msg', role: 'status' });
@@ -475,7 +494,9 @@
         el('button', { type: 'button', class: 'me', text: '내 정보', onclick: function () { close(); if (window.SeoilAI) { window.SeoilAI.open(true); var b = document.querySelector('#seoil-ai .hd .ibtn[title="내 정보·설정"]'); if (b) b.click(); } } }),
       ]),
       ui.main,
+      ui.ver = el('div', { class: 'ver', title: '누르면 복사', text: '', onclick: function () { try { navigator.clipboard.writeText(ui.ver.textContent); busy(false, '버전 정보를 복사했습니다.'); } catch (e) {} } }),
     ]);
+    drawVersion();
     // hwp를 홈에 놓으면 양식으로 연다
     ui.root.addEventListener('dragover', function (e) { e.preventDefault(); ui.root.classList.add('drag'); });
     ui.root.addEventListener('dragleave', function (e) { if (e.target === ui.root) ui.root.classList.remove('drag'); });

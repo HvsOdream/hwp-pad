@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['desktop/**', '.github/workflows/windows-desktop.yml']
+    paths: ['desktop/**', '.github/workflows/windows-desktop.yml', 'VERSION']
 
 permissions:
   contents: write
@@ -28,6 +28,11 @@ jobs:
           mkdir -p build
           curl -fsSL https://hvsodream.github.io/hwp-pad/icons/icon-512.png -o build/icon.png
           ls -la build
+      - name: Version from root VERSION file
+        run: |
+          V=$(tr -d ' \n' < ../VERSION)
+          npm version "$V" --no-git-tag-version --allow-same-version
+          echo "desktop version → $V (빌드 ${{ github.run_number }})"
       - name: Install
         run: npm install --no-audit --no-fund
       - name: Build NSIS installer

@@ -1,0 +1,20 @@
+# 서일 오피스 — 버전 기록
+
+버전은 루트 `VERSION` 한 곳에서만 올린다. 웹(Pages)·iOS(TestFlight)·윈도우 설치판이 모두 이 값을 쓴다.
+각 판의 **빌드 번호**는 GitHub Actions 실행 번호(run number)라 자동으로 올라간다.
+
+확인하는 곳
+- 앱 홈 화면 맨 아래 한 줄: `v0.3.0 · 웹 빌드 123 (abc1234, 11-06) · iOS 앱 0.3.0 (47)` — 누르면 복사
+- 웹: https://hvsodream.github.io/hwp-pad/version.json
+- iOS: App Store Connect → TestFlight → 빌드 목록(버전·빌드 번호)
+- 윈도우: GitHub Releases 태그 `desktop-v0.3.0-<빌드>`
+
+빌드 전 규칙(프로토 기간): `VERSION` 올리고 → 아래에 한 줄 적고 → 빌드.
+
+## 0.3.0 — 2026-11-06
+- iOS: 카톡·파일 앱에서 「서일 오피스로 열기」가 안 되던 문제(Capacitor 플러그인 JS 미등록) 수정, 넘어온 파일은 Documents로 옮겨 덮어쓰기 저장 가능
+- 버전 체계 통일(VERSION 파일, version.json, 홈 화면 버전 줄)
+- 11/4~11/5 반영분: 홈 화면(기본 양식 줄·내 양식 고정·되돌리기), 양식 채우기(칸 지도·표 지우기·강조), 본문 쓰기 + 서일 보고서 양식, 칸 안 그림 붙여넣기, 문서 닫기(Ctrl+F4), 대화상자 키보드, AI 중계 서버·사용 코드, 설치판 Claude(MCP) 연결, 설정 화면 정리
+
+## 0.2.2 이전
+- 윈도우 설치판 0.2.x, iOS TestFlight 0.1.0(빌드 1~5): 버전을 따로 관리하지 않던 시기

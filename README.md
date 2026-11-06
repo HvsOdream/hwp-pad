@@ -6,6 +6,10 @@ GitHub Pages에 PWA로 올린 것. 아이패드 사파리에서 "홈 화면에 �
 
 주소: https://hvsodream.github.io/hwp-pad/
 
+## 버전
+
+루트 `VERSION` 한 곳만 올린다(웹·iOS·윈도우 공통). 빌드 번호는 Actions 실행 번호. 기록은 `CHANGELOG.md`, 확인은 앱 홈 화면 맨 아래 줄 또는 `version.json`.
+
 ## 레포 구성
 
 - `.github/workflows/deploy.yml` — 빌드·배포. 매니페스트·아이콘·.nojekyll·`debug.js`는 빌드 중 만들어진다.

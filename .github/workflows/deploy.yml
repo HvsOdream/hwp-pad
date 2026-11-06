@@ -557,8 +557,27 @@ jobs:
           console.log('index.html patched:', fs.statSync(p).size, 'bytes');
           EOF
 
+          # --- 버전(루트 VERSION 한 곳) → version.json + index.html의 window.SEOIL_BUILD ---
+          SEOIL_VERSION=$(tr -d ' \n' < VERSION)
+          node - <<'EOF'
+          const fs = require('fs');
+          const info = {
+            version: fs.readFileSync('VERSION', 'utf8').trim(),
+            build: Number(process.env.GITHUB_RUN_NUMBER),
+            sha: String(process.env.GITHUB_SHA).slice(0, 7),
+            date: new Date().toISOString(),
+          };
+          fs.writeFileSync('site/version.json', JSON.stringify(info));
+          const p = 'site/index.html';
+          let html = fs.readFileSync(p, 'utf8');
+          html = html.replace(/<\/head>/i, `    <script>window.SEOIL_BUILD=${JSON.stringify(info)};</script>\n  </head>`);
+          fs.writeFileSync(p, html);
+          console.log('version:', info);
+          EOF
+
           # --- 빌드 정보 ---
           (cd openoffice && git rev-parse HEAD) > site/BUILD_INFO.txt
+          echo "seoil office: v${SEOIL_VERSION} build ${GITHUB_RUN_NUMBER} ${GITHUB_SHA::7}" >> site/BUILD_INFO.txt
           echo "openoffice ref: ${OPENOFFICE_REF}" >> site/BUILD_INFO.txt
           date -u +"built: %Y-%m-%dT%H:%M:%SZ" >> site/BUILD_INFO.txt
           du -sh site
