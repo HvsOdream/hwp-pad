@@ -1,0 +1,44 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>서일 오피스 — 단축키 안내</title>
+<style>
+  :root{color-scheme:light dark;--fg:#111827;--bg:#fff;--line:#e5e7eb;--muted:#6b7280;--acc:#1d4ed8}
+  @media(prefers-color-scheme:dark){:root{--fg:#e5e7eb;--bg:#111827;--line:#374151;--muted:#9ca3af;--acc:#93c5fd}}
+  body{margin:0;padding:24px 16px 60px;font:14px/1.6 -apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:var(--fg);background:var(--bg)}
+  main{max-width:860px;margin:0 auto}h1{font-size:22px;margin:0 0 6px}h2{font-size:16px;margin:28px 0 8px;padding-top:12px;border-top:1px solid var(--line)}
+  p{margin:6px 0;color:var(--muted)}li{margin:4px 0 4px 18px}code{font:12px ui-monospace,Consolas,monospace;background:rgba(127,127,127,.15);padding:1px 5px;border-radius:4px}
+  table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}th{background:rgba(127,127,127,.1)}
+  td:nth-child(2){white-space:nowrap;font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+  .top{position:sticky;top:0;background:var(--bg);padding:8px 0;border-bottom:1px solid var(--line);margin-bottom:12px;display:flex;gap:12px;align-items:center}
+  .top a{color:var(--acc);text-decoration:none}.top .sp{flex:1}
+  .box{border:1px solid var(--line);border-left:4px solid var(--acc);padding:10px 14px;border-radius:6px;margin:14px 0}
+</style></head><body><main>
+<div class="top"><a href="./">← 편집기로</a><span class="sp"></span><a href="#" onclick="window.print();return false">인쇄</a></div>
+<div class="box"><strong>먼저 알아둘 것</strong><br>
+• 한글 2024와 같은 키를 그대로 씁니다. 별도의 단축키 설정 화면은 없습니다(한글의 「사용자 설정 → 단축키」 같은 바꾸기 기능은 아직 없음).<br>
+• 🔒 표시 키(Ctrl+N 계열 등)는 <strong>단축키 모드</strong>에서만 됩니다 — PC 크롬·엣지에서 <code>Ctrl+G, Z</code> 또는 오른쪽 아래 ⌨ 버튼. 나올 땐 Esc 길게.<br>
+• 명령을 이름으로 찾으려면 <code>Ctrl+/</code> (명령 팔레트).</div>
+<h1>서일 오피스 — 한글 2024 단축키 대조표 (2026-11-02)</h1>
+<p>기준: 한컴 공식 도움말 단축키 일람(help.hancom.com, hoffice130 Hwp <code>view/toolbar/shortcut(table).htm</code>) + 메뉴별 페이지(file·edit·view·insert·format·Page·table·tools).</p>
+<p>구현: rhwp-studio v0.8.7 기본 단축키 + 이음오피스 <code>hancom-keys</code> 플러그인(빌드에 포함) + hwp-pad 패치(<code>patches/hancom-web.mjs</code>, 2026-11-02).</p>
+<p>표기: ✅ 됨 · 🔒 <strong>단축키 모드</strong>(Ctrl+G,Z: 전체 화면+키 잠금)에서만 됨 — 일반 탭에선 브라우저가 먼저 가져감 · 🆕 이번 패치로 추가 · ✖ 없음(편집기에 기능 자체가 없음) · ➖ 해당 없음(브라우저/PWA에 개념 없음)</p>
+<h2>파일</h2>
+<table><tr><th>기능</th><th>한글 키</th><th>상태</th></tr><tr><td>새 문서</td><td>Alt+N</td><td>✅</td></tr><tr><td>불러오기</td><td>Alt+O</td><td>🆕</td></tr><tr><td>저장</td><td>Alt+S / Ctrl+S</td><td>🆕 / ✅</td></tr><tr><td>다른 이름으로 저장</td><td>Alt+V</td><td>🆕 (윈도우·아이패드. 맥은 Alt+V,T 보기 연속키 유지)</td></tr><tr><td>인쇄</td><td>Alt+P / Ctrl+P</td><td>🆕 / ✅</td></tr><tr><td>문서 정보</td><td>Ctrl+Q,I · Ctrl+Q,D</td><td>✅</td></tr><tr><td>편집 용지</td><td>F7</td><td>✅</td></tr><tr><td>문서 끼워 넣기</td><td>Ctrl+O</td><td>✅ (rhwp는 '불러오기'로 동작)</td></tr><tr><td>새 탭·문서마당·문서 닫기·끝</td><td>Ctrl+Alt+T·Ctrl+Alt+N·Ctrl+F4·Alt+X</td><td>➖</td></tr></table>
+<h2>편집</h2>
+<table><tr><th>기능</th><th>한글 키</th><th>상태</th></tr><tr><td>되돌리기 / 다시 실행</td><td>Ctrl+Z / Ctrl+Shift+Z</td><td>✅</td></tr><tr><td>오려두기·복사·붙이기</td><td>Ctrl+X·C·V</td><td>✅</td></tr><tr><td>셀 블록 복사·오려두기 (표 형태 유지)</td><td>Ctrl+C·X (셀 블록)</td><td>🆕 (Electron 전용이던 경로 복원)</td></tr><tr><td>지우기 / 셀 블록 내용 지우기 / 표 지우기</td><td>Ctrl+E</td><td>✅ / 🆕 / 🆕</td></tr><tr><td>모양 복사</td><td>Alt+C</td><td>✅</td></tr><tr><td>모두 선택</td><td>Ctrl+A</td><td>✅</td></tr><tr><td>찾기</td><td>Ctrl+Q,F · Ctrl+F</td><td>✅</td></tr><tr><td>찾아 바꾸기</td><td>Ctrl+F2 · Ctrl+Q,A · Ctrl+H</td><td>✅</td></tr><tr><td>다시 찾기 / 거꾸로 찾기</td><td>Ctrl+L / Ctrl+Q,L</td><td>✅</td></tr><tr><td>찾아가기</td><td>Alt+G</td><td>✅</td></tr><tr><td>고치기</td><td>Ctrl+N,K</td><td>🔒 ✅</td></tr><tr><td>줄 지우기</td><td>Ctrl+Y</td><td>✅</td></tr><tr><td>한자로 / 한글로 바꾸기</td><td>F9 / Alt+F9</td><td>✅ / ✖</td></tr><tr><td>다음 단어 지우기</td><td>Ctrl+T · Ctrl+Delete</td><td>🔒(Ctrl+T) ✖ / ✅</td></tr><tr><td>줄 끝까지 지우기</td><td>Alt+Y</td><td>✖</td></tr><tr><td>골라 붙이기</td><td>Ctrl+Alt+V</td><td>✖</td></tr><tr><td>블록 설정 F3 / 문단 이동 Alt+Shift+↑↓ / 커서 위치 이력 Ctrl+=</td><td></td><td>✖</td></tr><tr><td>보조 클립보드 키 (Ctrl+Insert·Shift+Insert·Shift+Delete)</td><td></td><td>✖ (Insert는 삽입/수정 토글)</td></tr></table>
+<h2>입력</h2>
+<table><tr><th>기능</th><th>한글 키</th><th>상태</th></tr><tr><td>표 만들기</td><td>Ctrl+N,T</td><td>🔒 ✅</td></tr><tr><td>그림 / 글상자 / 수식</td><td>Ctrl+N,I / B / M</td><td>🔒 ✅</td></tr><tr><td>각주 / 미주</td><td>Ctrl+N,N / E</td><td>🔒 ✅</td></tr><tr><td>캡션 넣기</td><td>Ctrl+N,C</td><td>🔒 ✅</td></tr><tr><td>필드 입력</td><td>Ctrl+K,E</td><td>✅</td></tr><tr><td>날짜/시간 문자열</td><td>Ctrl+K,D</td><td>✅</td></tr><tr><td>문자표</td><td>Ctrl+F10</td><td>✅</td></tr><tr><td>하이퍼링크 / 책갈피</td><td>Ctrl+K,H / B</td><td>✅</td></tr><tr><td>문단 띠 / OLE / 상호 참조 / 날짜 코드·형식 / 한자 사전류</td><td>Ctrl+N,L / N,O / K,R / K,C·F / Ctrl+F9…</td><td>✖</td></tr></table>
+<h2>서식 — 글자</h2>
+<table><tr><th>기능</th><th>한글 키</th><th>상태</th></tr><tr><td>글자 모양 / 문단 모양</td><td>Alt+L / Alt+T</td><td>✅</td></tr><tr><td>진하게·기울임·밑줄</td><td>Ctrl+B·I·U, Alt+Shift+B·I·U</td><td>✅</td></tr><tr><td>위 첨자 / 아래 첨자 / 보통 모양</td><td>Alt+Shift+P / S / C</td><td>✅</td></tr><tr><td>글자 크게 / 작게</td><td>Alt+Shift+E·R, Ctrl+]·[</td><td>✅</td></tr><tr><td>자간 넓게 / 좁게</td><td>Alt+Shift+W / N</td><td>✅</td></tr><tr><td>장평 넓게 / 좁게</td><td>Alt+Shift+J / K</td><td>✅</td></tr><tr><td>글자색 8종</td><td>Ctrl+M,K/R/B/D/G/Y/C/W</td><td>✅</td></tr><tr><td>스타일 / 스타일 1~10</td><td>F6 / Ctrl+1~0, Ctrl+Alt+1~0</td><td>✅</td></tr><tr><td>다음·이전 글꼴 / 첨자 순환 / 글자 스타일 해제</td><td>Alt+Shift+F·G / Ctrl+Alt+A / Ctrl+-</td><td>✖</td></tr></table>
+<h2>서식 — 문단</h2>
+<table><tr><th>기능</th><th>한글 키</th><th>상태</th></tr><tr><td>왼쪽·가운데·오른쪽·양쪽·배분 정렬</td><td>Ctrl+Shift+L·C·R·M·T</td><td>✅ (C·R·T는 🔒 권장 — 일반 탭에선 크롬이 Ctrl+Shift+C/R/T를 가져감)</td></tr><tr><td>줄 간격 넓게 / 좁게</td><td>Alt+Shift+Z·A, Ctrl+Shift+W·Q</td><td>✅ / 🆕</td></tr><tr><td>문단 번호 모양</td><td>Ctrl+K,N</td><td>✅</td></tr><tr><td>문단 번호 적용/해제</td><td>Ctrl+Shift+Insert</td><td>🆕</td></tr><tr><td>글머리표 적용/해제</td><td>Ctrl+Shift+Delete</td><td>🆕</td></tr><tr><td>한 수준 증가/감소</td><td>Ctrl+Num−/+</td><td>✅</td></tr><tr><td>빠른 내어쓰기</td><td>Shift+Tab (셀 안 Ctrl+Shift+Tab)</td><td>✅</td></tr><tr><td>여백·들여쓰기 키 (Ctrl+Shift+E/G/D/F, Ctrl+F5~F8) / 개요 Ctrl+Insert·Ctrl+K,O</td><td></td><td>✖</td></tr></table>
+<h2>쪽</h2>
+<table><tr><th>기능</th><th>한글 키</th><th>상태</th></tr><tr><td>쪽 나누기</td><td>Ctrl+Enter / Ctrl+J</td><td>✅ / 🆕</td></tr><tr><td>단 나누기 / 단 설정 나누기</td><td>Ctrl+Shift+Enter / Ctrl+Alt+Enter</td><td>✅</td></tr><tr><td>머리말·꼬리말</td><td>Ctrl+N,H</td><td>🔒 ✅</td></tr><tr><td>쪽 번호 매기기</td><td>Ctrl+N,P</td><td>🔒 ✅</td></tr><tr><td>현재 쪽 감추기</td><td>Ctrl+N,S</td><td>🔒 ✅</td></tr><tr><td>구역 설정</td><td>Ctrl+N,G</td><td>🔒 ✅</td></tr><tr><td>구역 나누기</td><td>Alt+Shift+Enter</td><td>✖</td></tr></table>
+<h2>표</h2>
+<table><tr><th>기능</th><th>한글 키</th><th>상태</th></tr><tr><td>표 만들기 / 나누기 / 붙이기</td><td>Ctrl+N,T / A / Z</td><td>🔒 ✅</td></tr><tr><td>줄·칸 추가 / 지우기</td><td>Alt+Insert(Alt+Enter) / Alt+Delete</td><td>✅</td></tr><tr><td>셀 선택 / 확장</td><td>F5, Shift+F5</td><td>✅ (F3 셀 확장은 미확인)</td></tr><tr><td>셀 이동 / 크기</td><td>Alt+화살표, Shift·Ctrl+화살표</td><td>✅</td></tr><tr><td>셀 나누기·합치기·높이·너비 같게</td><td>S·M·H·W</td><td>✅</td></tr><tr><td>표/셀 속성 · 테두리 · 배경</td><td>P · L · C · B · F</td><td>✅</td></tr><tr><td>표 뒤집기 / 자동 채우기</td><td>T / A</td><td>✅</td></tr><tr><td>계산식</td><td>Ctrl+N,F</td><td>🔒 ✅</td></tr><tr><td>블록 합계 / 평균 / 곱</td><td>Ctrl+Shift+S / A / P</td><td>🆕 / ✅ / ✅</td></tr><tr><td>쉬운 계산식 6종</td><td>Ctrl+Shift+H·V·J·B·K·N</td><td>✅ (🔒 권장: Ctrl+Shift+N·V는 브라우저가 가져갈 수 있음)</td></tr><tr><td>셀 안 탭 문자</td><td>Ctrl+Tab</td><td>✅ (🔒 권장)</td></tr><tr><td>줄 추가 / 삭제</td><td>Ctrl+Enter / Ctrl+Backspace (셀 안)</td><td>✅</td></tr><tr><td>표 나가기</td><td>Shift+Esc</td><td>✅ (이음 leaveTable, 실기 미확인)</td></tr></table>
+<h2>보기·도구·기타</h2>
+<table><tr><th>기능</th><th>한글 키</th><th>상태</th></tr><tr><td>조판 부호 / 문단 부호</td><td>Ctrl+G,C / T</td><td>✅</td></tr><tr><td>쪽 맞춤 / 폭 맞춤 / 100%</td><td>Ctrl+G,P / W / Q</td><td>✅</td></tr><tr><td>확대/축소</td><td>Ctrl+= / −</td><td>✅</td></tr><tr><td><strong>전체 화면 (= 단축키 모드)</strong></td><td>Ctrl+G,Z</td><td>🆕</td></tr><tr><td>개체 선택</td><td>F11</td><td>✅ (그래서 단축키 모드는 F11을 쓰지 않음)</td></tr><tr><td>도구 상자 접기</td><td>Ctrl+F1</td><td>✅</td></tr><tr><td>쪽 윤곽 Ctrl+G,L / 창 나누기 Ctrl+W,* / 사전·맞춤법·매크로·메일머지·차례</td><td></td><td>➖ / ✖</td></tr></table>
+<h2>정리</h2>
+<li>한글 핵심 편집 키는 사실상 전부 들어 있고, <strong>표 작업의 Ctrl+N 계열은 단축키 모드에서만</strong> 된다(브라우저 구조상 불가피, Tauri 앱에서 해소 예정).</li>
+<li>이번 패치로 메운 것: 파일 Alt 키 4종, 셀 블록 Ctrl+E/C/X·Ctrl+Shift+S(이음이 Electron 메인 프로세스에 맡겼던 부분), Ctrl+J, Ctrl+Shift+W/Q, Ctrl+Shift+Insert/Delete, Ctrl+G,Z.</li>
+<li>남은 ✖는 rhwp에 기능 자체가 없는 것(여백 조절 키, 글꼴 순환, 구역 나누기, 골라 붙이기 등). 필요해지면 rhwp 명령부터 만들어야 한다.</li>
+</main></body></html>
