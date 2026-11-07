@@ -21,7 +21,8 @@ jobs:
   testflight:
     # 자동 트리거는 Pages 배포가 성공했을 때만, 그리고 TestFlight 시크릿이 세팅된 뒤에만
     if: ${{ github.event_name == 'workflow_dispatch' }}
-    runs-on: macos-15
+    # xcode-27 라벨: Xcode 27.x(iOS 27 SDK) 러너 — 아이폰 듀오 전체 화면·2027-04 이후 제출 요건
+    runs-on: xcode-27
     timeout-minutes: 60
     env:
       APP_ID: com.hvsodream.seoiloffice
@@ -115,11 +116,12 @@ jobs:
       - name: Select Xcode
         if: steps.check.outputs.go == 'true'
         run: |
-          # App Store Connect는 iOS 26 SDK(Xcode 26) 이상만 받는다(2026-11 기준). 러너에 있는 가장 최신 Xcode를 고른다.
+          # iOS 27 SDK(Xcode 27)로 빌드해야 아이폰 듀오에서 전체 화면으로 뜬다(아니면 가운데 폰 크기 창). 러너의 가장 최신 Xcode 27.x를 고른다.
           ls -d /Applications/Xcode*.app
-          sudo xcode-select -s "$(ls -d /Applications/Xcode_[0-9]*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_27*.app | sort -V | tail -1)"
           xcodebuild -version
           xcodebuild -showsdks | grep -i iphoneos
+          xcodebuild -downloadComponent MetalToolchain 2>/dev/null || true
 
       - name: Fastlane beta (match → build → TestFlight)
         if: steps.check.outputs.go == 'true'

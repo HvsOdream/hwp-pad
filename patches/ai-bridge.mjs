@@ -18,6 +18,9 @@ src = src.replace(find, () => find + `
   doc: () => (wasm as any).doc,
   changed: (reason: string = 'seoil-ai') => eventBus.emit('document-changed', reason),
   fileName: () => wasm.fileName,
+  // [hwp-pad] 뷰어 모드(seoil-view.js)용: 명령 실행·키보드 입력 끊기/잇기
+  dispatch: (id: string) => dispatcher.dispatch(id),
+  inputActive: (on: boolean) => { try { on ? inputHandler?.focus() : (inputHandler as any)?.textarea?.blur(); } catch {} },
 };`)
 writeFileSync(main, src)
 console.log('[hwp-pad] ai-bridge: ok')

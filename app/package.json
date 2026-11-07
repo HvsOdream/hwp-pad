@@ -7,15 +7,15 @@
     "sync": "cap sync ios"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.1.2"
+    "@capacitor/cli": "^8.6.0"
   },
   "dependencies": {
-    "@capacitor/core": "^6.1.2",
-    "@capacitor/ios": "^6.1.2",
-    "@capacitor/app": "^6.0.1",
-    "@capacitor/filesystem": "^6.0.1",
-    "@capacitor/share": "^6.0.2",
-    "@capacitor/status-bar": "^6.0.1",
-    "@capacitor/keyboard": "^6.0.2"
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/ios": "^8.6.0",
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/filesystem": "^8.0.0",
+    "@capacitor/share": "^8.0.0",
+    "@capacitor/status-bar": "^8.0.0",
+    "@capacitor/keyboard": "^8.0.0"
   }
 }

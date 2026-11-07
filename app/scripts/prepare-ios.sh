@@ -7,7 +7,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 test -f www/index.html
 
-if [ ! -d ios ]; then npx cap add ios; fi
+# Capacitor 8: 기본이 SPM 템플릿이라 CocoaPods를 명시(기존 Podfile·xcworkspace 흐름 유지). 8.5+ 템플릿은 UIScene(SceneDelegate) 포함 — iOS 27 SDK(Xcode 27) 빌드 필수 조건이자 아이폰 듀오 전체 화면 조건.
+if [ ! -d ios ]; then npx cap add ios --packagemanager CocoaPods; fi
 npx cap sync ios
 
 # 최소 iOS 15.0 (App Store Connect ITMS-90068: 2027-04부터 15.0 이상만 업로드 가능)
@@ -74,5 +75,21 @@ open(p,'w').write(s)
 PY
 fi
 grep -n "startAccessingSecurityScopedResource" "$AD"
+# SceneDelegate(UIScene): iOS 27 SDK 빌드에서는 파일 URL이 scene(openURLContexts)로 들어온다 — 여기서도 보안 범위 접근을 연다
+SD=ios/App/App/SceneDelegate.swift
+test -f "$SD" || { echo "SceneDelegate.swift 없음 — Capacitor 8.5+ 템플릿이어야 한다"; exit 1; }
+if ! grep -q "startAccessingSecurityScopedResource" "$SD"; then
+  python3 - "$SD" <<'PY'
+import sys
+p=sys.argv[1]; s=open(p).read()
+s=s.replace("func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {",
+"func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {\n        // [seoil] 파일 앱·카톡에서 넘어온 문서를 앱이 계속 읽고 쓸 수 있게 (제자리 열기)\n        for c in URLContexts { _ = c.url.startAccessingSecurityScopedResource() }",1)
+s=s.replace("guard let windowScene = scene as? UIWindowScene else { return }",
+"guard let windowScene = scene as? UIWindowScene else { return }\n        // [seoil] 앱이 파일과 함께 켜질 때(콜드 스타트)\n        for c in connectionOptions.urlContexts { _ = c.url.startAccessingSecurityScopedResource() }",1)
+open(p,'w').write(s)
+PY
+fi
+grep -n "startAccessingSecurityScopedResource" "$SD"
+grep -q "UIApplicationSceneManifest" "$PLIST" || { echo "Info.plist에 UIApplicationSceneManifest 없음"; exit 1; }
 plutil -lint "$PLIST"
 echo "[prepare-ios] done"
