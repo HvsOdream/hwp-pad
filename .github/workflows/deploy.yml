@@ -12,6 +12,10 @@ name: Deploy hwp-pad to GitHub Pages
 on:
   push:
     branches: [main]
+    # 재현 양식·엔진 렌더 CI 만 바뀐 푸시로는 사이트를 다시 배포하지 않는다.
+    paths-ignore:
+      - 'tests/**'
+      - '.github/workflows/rhwp-devel-render.yml'
   workflow_dispatch:
     inputs:
       openoffice_ref:

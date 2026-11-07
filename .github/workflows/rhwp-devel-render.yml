@@ -1,0 +1,97 @@
+# rhwp upstream(devel HEAD)으로 tests/fixtures/*.hwp 를 렌더해 PNG 아티팩트로 남긴다.
+# 용도: 우리 번들(이음 vendor rhwp 스냅샷)에서 보이는 조판 버그가 upstream 최신에서도
+# 재현되는지 확인 → upstream 이슈/패치 판단. 사이트 배포와는 무관하다(아티팩트만).
+#
+# 수동 실행(Actions → 이 워크플로 → Run workflow)으로 rhwp ref를 바꿔 돌릴 수 있다.
+
+name: Render fixtures with rhwp devel
+
+on:
+  workflow_dispatch:
+    inputs:
+      rhwp_ref:
+        description: 'edwardkim/rhwp ref (branch, tag or commit)'
+        required: false
+        default: 'devel'
+  push:
+    paths:
+      - 'tests/fixtures/**'
+      - '.github/workflows/rhwp-devel-render.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout hwp-pad
+        uses: actions/checkout@v4
+
+      - name: Checkout rhwp
+        uses: actions/checkout@v4
+        with:
+          repository: edwardkim/rhwp
+          ref: ${{ github.event.inputs.rhwp_ref || 'devel' }}
+          path: rhwp
+          fetch-depth: 1
+
+      - name: Record rhwp commit
+        working-directory: rhwp
+        run: |
+          mkdir -p ../out
+          git log -1 --format='%H %cd %s' | tee ../out/rhwp-commit.txt
+
+      # rust-toolchain.toml 이 채널을 고정하므로 rustup 이 알아서 받는다.
+      - name: Setup Rust
+        run: |
+          rustup show
+          cargo --version
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rhwp/target
+          key: rhwp-cli-${{ runner.os }}-${{ hashFiles('rhwp/Cargo.lock') }}
+          restore-keys: rhwp-cli-${{ runner.os }}-
+
+      # release 프로필은 LTO+codegen-units=1 이라 메모리를 많이 먹고 느리다(8GB 박스에서 OOM).
+      # 렌더 결과 확인용이라 upstream 의 release-test 프로필(LTO 없음)로 충분하다.
+      - name: Build rhwp CLI
+        working-directory: rhwp
+        run: cargo build --profile release-test --locked --bin rhwp
+
+      # 한글 글꼴: 함초롬/맑은 고딕은 없으니 나눔·Noto CJK 로 대체. 줄바꿈 폭은 조금 다를 수 있지만
+      # 단(段) 배치·쪽 넘김 같은 구조 버그는 글꼴과 무관하게 보인다.
+      - name: Install fonts and rasterizer
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q fonts-nanum fonts-noto-cjk poppler-utils
+          fc-cache -f
+          fc-list | grep -ci "nanum\|noto" || true
+
+      - name: Render fixtures
+        run: |
+          set -euo pipefail
+          bin=rhwp/target/release-test/rhwp
+          shopt -s nullglob
+          for f in tests/fixtures/*.hwp tests/fixtures/*.hwpx; do
+            name=$(basename "${f%.*}")
+            echo "== $f"
+            "$bin" info "$f" --json > "out/$name.info.json" || true
+            "$bin" export-pdf "$f" -o "out/$name.pdf" --json | tee "out/$name.export.json"
+            pdftoppm -r 96 -png "out/$name.pdf" "out/$name"
+            "$bin" export-svg "$f" -o "out/$name-svg" --json > /dev/null || true
+          done
+          ls -la out
+
+      - name: Upload renders
+        uses: actions/upload-artifact@v4
+        with:
+          name: rhwp-devel-render-${{ github.run_number }}
+          path: out/
+          retention-days: 30
