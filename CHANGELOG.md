@@ -11,6 +11,10 @@
 
 빌드 전 규칙(프로토 기간): `VERSION` 올리고 → 아래에 한 줄 적고 → 빌드.
 
+## 0.4.2 — 2026-11-07
+- 라이선스 고지 동봉: 사이트에 `LICENSE-ieumoffice.txt`(Apache-2.0), `NOTICE-ieumoffice.txt`(이음 NOTICE + 한컴 HWP 공개문서 고지), `fonts/licenses/`(글꼴 저작권·라이선스 전문). 조사 결과와 남은 일은 `THIRD_PARTY.md`, 우리 패치 목록은 `patches/README.md`
+- CI: `tests/fixtures/`의 양식을 upstream rhwp devel HEAD로 렌더하는 워크플로(`rhwp-devel-render.yml`). 게임학회 논문 양식 더미 재현 파일 추가(upstream #7282)
+
 ## 0.4.1 — 2026-11-07
 - 뷰어 모드에서 키보드가 올라오던 것 수정 — 편집기가 문서를 다 그린 뒤 숨은 입력창에 다시 포커스를 줘서 생김. 뷰어 동안은 포커스를 끊고 입력창에 inputmode=none, 네이티브 키보드도 내림
 

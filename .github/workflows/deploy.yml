@@ -139,6 +139,15 @@ jobs:
           cp -n openoffice/apps/hwp/node_modules/.cache/rhwp-studio/*/assets/fonts/*.txt openoffice/apps/hwp/node_modules/.cache/rhwp-studio/*/assets/fonts/*.md site/fonts/ 2>/dev/null || true
           echo "fonts: $(ls site/fonts | wc -l) files"
           test -f site/fonts/NotoSansKR-Regular.woff2
+          # 글꼴 저작권 고지·라이선스 전문(rhwp가 제품 패키지에 동봉하라고 요구) — THIRD_PARTY.md 참조
+          mkdir -p site/fonts/licenses
+          cp -rn openoffice/apps/hwp/node_modules/.cache/rhwp-studio/*/assets/fonts/licenses/. site/fonts/licenses/ || true
+          test -f site/fonts/licenses/font-notices.json
+
+          # --- 이음오피스(Apache-2.0) 고지: LICENSE·NOTICE 전문 + 한컴 HWP 공개 문서 고지 ---
+          cp openoffice/LICENSE site/LICENSE-ieumoffice.txt
+          { cat openoffice/NOTICE; printf '\n\n---\n서일 오피스는 이음오피스(IeumOffice, Apache-2.0)의 HWP 편집기 빌드와 rhwp(MIT)를 바탕으로\n서일대학교가 수정·배포하는 제품입니다. 수정 내용은 저장소 patches/README.md 에 적습니다.\n본 제품은 한글과컴퓨터의 한글 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.\n'; } > site/NOTICE-ieumoffice.txt
+          test -s site/LICENSE-rhwp.txt && test -s site/NOTICE-ieumoffice.txt
 
           # --- icons: 「서일」 두 글자 (나눔고딕 볼드; 없으면 단색 배경만) ---
           ICON_FONT=/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf
