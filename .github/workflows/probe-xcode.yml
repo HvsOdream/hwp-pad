@@ -1,0 +1,13 @@
+name: probe-xcode
+on: { workflow_dispatch: {} }
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix: { os: [macos-26, xcode-27, macos-latest] }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - run: |
+          sw_vers; ls -d /Applications/Xcode*.app
+          for x in /Applications/Xcode_[0-9]*.app; do echo "== $x"; "$x/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -2; ls "$x/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/"; done
