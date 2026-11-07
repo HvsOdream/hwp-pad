@@ -16,6 +16,7 @@ on:
     paths-ignore:
       - 'tests/**'
       - '.github/workflows/rhwp-devel-render.yml'
+      - 'docs/issues/**'
   workflow_dispatch:
     inputs:
       openoffice_ref:
