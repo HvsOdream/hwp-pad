@@ -74,13 +74,26 @@
   function dist(e) { var a = e.touches[0], b = e.touches[1]; return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); }
   function tick() { var z = document.getElementById('sb-zoom-val') || document.getElementById('sb-zoom-display'); if (z && ui.zoom) ui.zoom.textContent = (z.textContent || z.value || '').trim(); if (ui.fit) ui.fit(); }
 
+  // 키보드 숨기기: 편집기가 문서를 다 그린 뒤 숨은 입력창에 다시 포커스를 주므로, 뷰어 동안은 포커스가 갈 때마다 끊고
+  // 입력창에 inputmode=none 을 달아(포커스돼도 iOS 키보드가 안 뜸) 네이티브 키보드도 내린다.
+  function inputs() { return document.querySelectorAll('#editor-area textarea, #editor-area [contenteditable="true"], #editor-area [contenteditable=""]'); }
+  function hideKb() {
+    var a = api(); if (a && a.inputActive) a.inputActive(false);
+    inputs().forEach(function (t) { if (!t.hasAttribute('data-seoil-im')) { t.setAttribute('data-seoil-im', t.getAttribute('inputmode') || ''); } t.setAttribute('inputmode', 'none'); });
+    var ae = document.activeElement;
+    if (ae && ae !== document.body && !ui.bar.contains(ae)) { try { ae.blur(); } catch (e) {} }
+    try { if (window.Capacitor && window.Capacitor.nativePromise) window.Capacitor.nativePromise('Keyboard', 'hide', {}).catch(function () {}); } catch (e) {}
+  }
+  function onFocusIn(e) { if (on && e.target && !ui.bar.contains(e.target) && !e.target.closest('.modal-overlay,#seoil-home,#seoil-ai')) setTimeout(hideKb, 0); }
+
   /** 뷰어로 들어가기 */
   function enter() {
     if (on) return; on = true;
     document.body.classList.add('seoil-view');
     guard();
-    var a = api(); if (a && a.inputActive) a.inputActive(false);
-    try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {}
+    hideKb();
+    document.addEventListener('focusin', onFocusIn, true);
+    [200, 800, 1500, 3000].forEach(function (ms) { setTimeout(function () { if (on) hideKb(); }, ms); });
     setTimeout(function () { dispatch('view:zoom-fit-width'); tick(); }, 60);
     setTimeout(tick, 600);
     ui.name.textContent = fileName();
@@ -89,7 +102,9 @@
   function leave(edit) {
     if (!on) return; on = false;
     document.body.classList.remove('seoil-view');
+    document.removeEventListener('focusin', onFocusIn, true);
     var g = document.getElementById('seoil-viewguard'); if (g) g.remove();
+    inputs().forEach(function (t) { var m = t.getAttribute('data-seoil-im'); if (m === null) return; m ? t.setAttribute('inputmode', m) : t.removeAttribute('inputmode'); t.removeAttribute('data-seoil-im'); });
     if (edit) { var a = api(); if (a && a.inputActive) a.inputActive(true); }
   }
 
@@ -110,7 +125,7 @@
     setInterval(function () {
       var n = fileName();
       if (n !== lastName) { lastName = n; if (n && n !== '새 문서.hwp' && narrow() && !on && !document.body.classList.contains('seoil-home-open')) enter(); if (!n || n === '새 문서.hwp') leave(false); }
-      if (on) tick();
+      if (on) { tick(); var ae = document.activeElement; if (ae && /TEXTAREA|INPUT/.test(ae.tagName) && !ui.bar.contains(ae) && !ae.closest('.modal-overlay,#seoil-home,#seoil-ai')) hideKb(); }
     }, 800);
   })();
   window.addEventListener('resize', function () { if (on) tick(); });
