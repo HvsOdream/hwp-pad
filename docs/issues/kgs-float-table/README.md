@@ -10,9 +10,11 @@ upstream 이슈 [edwardkim/rhwp#7282](https://github.com/edwardkim/rhwp/issues/7
 - 우리 번들: 서일 오피스 0.4.1 (이음오피스 vendor rhwp-core devel 7d06d5c)
 - upstream: devel `e4ffabea38062e716f6c333cc950fa31b42b4dd7` (2026-11-07) CLI `rhwp v0.9.0`, `cargo build --profile release-test --bin rhwp`
 
-| 서일 오피스 0.4.1 (wasm) | upstream devel e4ffabe (native `export-pdf`) | debug overlay |
-|---|---|---|
-| ![](seoil-office-0.4.1-p1.png) | ![](upstream-devel-e4ffabe-p1.png) | ![](upstream-devel-e4ffabe-p1-debug-overlay.png) |
+| 한글(한컴오피스 NEO, PDF 출력) — 기대 결과 | 서일 오피스 0.4.1 (wasm) | upstream devel e4ffabe (native `export-pdf`) | debug overlay |
+|---|---|---|---|
+| ![](hancom-office-neo-p1.png) | ![](seoil-office-0.4.1-p1.png) | ![](upstream-devel-e4ffabe-p1.png) | ![](upstream-devel-e4ffabe-p1-debug-overlay.png) |
+
+한컴 PDF 원본(2쪽 모아찍기, A4 가로): [`hancom-office-neo-2up.pdf`](hancom-office-neo-2up.pdf)
 
 ---
 
@@ -48,6 +50,10 @@ upstream 이슈 [edwardkim/rhwp#7282](https://github.com/edwardkim/rhwp/issues/7
 ![upstream](https://raw.githubusercontent.com/HvsOdream/hwp-pad/main/docs/issues/kgs-float-table/upstream-devel-e4ffabe-p1.png)
 ![overlay](https://raw.githubusercontent.com/HvsOdream/hwp-pad/main/docs/issues/kgs-float-table/upstream-devel-e4ffabe-p1-debug-overlay.png)
 
-한/글 기준 화면은 (추가 예정).
+한/글(한컴오피스 NEO) PDF 출력 1쪽 — 양쪽 단 모두 표 아래에서 시작하고, 왼쪽 단에서 넘친 「구 누두 / 4. 가나다라마…」가 오른쪽 단 맨 위로 이어집니다:
+
+![hancom](https://raw.githubusercontent.com/HvsOdream/hwp-pad/main/docs/issues/kgs-float-table/hancom-office-neo-p1.png)
+
+한컴 PDF 원본(2쪽 모아찍기라 쪽 크기는 A4 가로입니다): https://github.com/HvsOdream/hwp-pad/raw/main/docs/issues/kgs-float-table/hancom-office-neo-2up.pdf
 
 이 양식은 학회 공식 양식이라 투고자 전원이 같은 구조의 문서를 만듭니다. 단 간 공용 배제 채널 설계가 정해지면 테스트 사례로 써 주세요.
