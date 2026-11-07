@@ -1,0 +1,167 @@
+# 엔진(rhwp wasm) 직접 빌드 — 이음오피스의 vendor/rhwp-core 를 그대로 쓰지 않고, 이음이 쓰는 도구
+# (openoffice/tools/build-rhwp-core.mjs: 고정 커밋 clone → 이음 패치 적용 → wasm-pack build)에
+# 우리 Rust 패치(engine-patches/*.patch)를 끝에 끼워 다시 빌드한다.
+#
+# 결과는 GitHub Release 태그 `engine` 의 자산으로 올린다(rhwp.js, rhwp_bg.wasm, …, base.json).
+# deploy.yml 이 같은 이음 vendor 기준(base.json 의 vendorWasmSha256)일 때만 그 자산으로 vendor 를 덮어쓴다.
+# 패치가 하나도 없으면 이음 vendor 와 같은 소스의 재빌드다(동작 동일).
+
+name: Build engine (rhwp wasm + our patches)
+
+on:
+  workflow_dispatch:
+    inputs:
+      openoffice_ref:
+        description: 'pblsketch/openoffice ref'
+        required: false
+        default: 'main'
+  push:
+    branches: [main]
+    paths:
+      - 'engine-patches/**'
+      - '.github/workflows/engine.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: engine
+  cancel-in-progress: true
+
+env:
+  OPENOFFICE_REPO: pblsketch/openoffice
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout hwp-pad
+        uses: actions/checkout@v4
+
+      - name: Checkout openoffice
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.OPENOFFICE_REPO }}
+          ref: ${{ github.event.inputs.openoffice_ref || 'main' }}
+          path: openoffice
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Record base (이음 vendor 상태)
+        id: base
+        run: |
+          node -e '
+            const m=require("./openoffice/vendor/rhwp-core/package.json").rhwp;
+            console.log("commit="+m.commit); console.log("tag="+m.tag);
+            console.log("vendorWasmSha256="+m.wasmSha256); console.log("wasmPack="+m.wasmPack);
+            console.log("ieumPatches="+m.patches.length);
+          ' | tee -a "$GITHUB_OUTPUT"
+          git -C openoffice rev-parse HEAD
+
+      - name: Cache cargo registry + wasm target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin/wasm-pack
+            ~/.cache/.wasm-pack
+            engine-target
+          key: engine-${{ runner.os }}-${{ steps.base.outputs.commit }}-${{ hashFiles('engine-patches/**') }}
+          restore-keys: |
+            engine-${{ runner.os }}-${{ steps.base.outputs.commit }}-
+            engine-${{ runner.os }}-
+
+      - name: Install wasm-pack ${{ steps.base.outputs.wasmPack }}
+        run: |
+          v=${{ steps.base.outputs.wasmPack }}
+          if ! ~/.cargo/bin/wasm-pack --version 2>/dev/null | grep -q "$v"; then
+            mkdir -p ~/.cargo/bin
+            curl -sSfL "https://github.com/drager/wasm-pack/releases/download/v$v/wasm-pack-v$v-x86_64-unknown-linux-musl.tar.gz" \
+              | tar -xz --strip-components=1 -C ~/.cargo/bin "wasm-pack-v$v-x86_64-unknown-linux-musl/wasm-pack" \
+              || cargo install wasm-pack --version "$v" --locked
+          fi
+          ~/.cargo/bin/wasm-pack --version
+          rustup show
+
+      # 우리 패치를 이음 패치 뒤에 붙인다. 파일명 순서대로 적용되므로 engine-patches/ 안에서 번호를 매긴다.
+      - name: Add hwp-pad engine patches to the vendor manifest
+        id: ours
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          ours=(engine-patches/*.patch)
+          echo "count=${#ours[@]}" >> "$GITHUB_OUTPUT"
+          if [ ${#ours[@]} -gt 0 ]; then
+            cp "${ours[@]}" openoffice/vendor/rhwp-core/patches/
+            names=$(printf '%s\n' "${ours[@]}" | xargs -n1 basename | node -e '
+              const fs=require("fs"); const names=fs.readFileSync(0,"utf8").trim().split("\n");
+              const p="./openoffice/vendor/rhwp-core/package.json"; const m=JSON.parse(fs.readFileSync(p,"utf8"));
+              m.rhwp.patches.push(...names); fs.writeFileSync(p, JSON.stringify(m,null,2)+"\n");
+              console.log(names.join(","))')
+            echo "ours: $names"
+          else
+            echo "no hwp-pad patches — rebuilding 이음 vendor as-is"
+          fi
+
+      - name: Build rhwp wasm (openoffice/tools/build-rhwp-core.mjs)
+        working-directory: openoffice
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/engine-target
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.cargo/bin:$PATH"
+          node tools/build-rhwp-core.mjs --keep 2>&1 | tail -40
+          ls -la vendor/rhwp-core/
+          # 우리 패치가 실제로 들어갔는지(이음 도구가 git apply 로 적용) — 패치마다 [hwp-pad] 표시를 넣는다
+          if [ "${{ steps.ours.outputs.count }}" != "0" ]; then
+            grep -rl "hwp-pad" node_modules/.cache/rhwp-core/*/src | head -5
+          fi
+
+      - name: Package engine
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          cp openoffice/vendor/rhwp-core/{rhwp.js,rhwp.d.ts,rhwp_bg.wasm,rhwp_bg.wasm.d.ts,package.json,LICENSE,THIRD_PARTY_LICENSES.md} out/
+          sha=$(sha256sum out/rhwp_bg.wasm | cut -d' ' -f1)
+          node -e '
+            const fs=require("fs"); const m=require("./out/package.json").rhwp;
+            fs.writeFileSync("out/base.json", JSON.stringify({
+              builtAt: new Date().toISOString(),
+              hwpPadSha: process.env.GITHUB_SHA,
+              openofficeSha: process.env.OO_SHA,
+              rhwpCommit: m.commit, rhwpTag: m.tag,
+              vendorWasmSha256: process.env.BASE_SHA,   // 이음 vendor 의 원래 wasm (deploy 가 대조)
+              wasmSha256: process.env.OUT_SHA,
+              ieumPatches: process.env.IEUM_N|0, hwpPadPatches: process.env.OURS_N|0,
+              patches: m.patches,
+            }, null, 2)+"\n");
+          '
+          cat out/base.json
+        env:
+          OO_SHA: ${{ steps.base.outputs.commit }}
+          BASE_SHA: ${{ steps.base.outputs.vendorWasmSha256 }}
+          IEUM_N: ${{ steps.base.outputs.ieumPatches }}
+          OURS_N: ${{ steps.ours.outputs.count }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-${{ github.run_number }}
+          path: out/
+
+      # Release 태그 `engine` 하나를 계속 덮어쓴다(최신 엔진 = 이 태그의 자산).
+      - name: Publish to release `engine`
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view engine --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create engine --repo "$GITHUB_REPOSITORY" --title "engine (rhwp wasm + hwp-pad patches)" \
+              --notes "deploy.yml 이 쓰는 최신 엔진 빌드. engine.yml 이 덮어쓴다." --latest=false
+          gh release upload engine out/* --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit engine --repo "$GITHUB_REPOSITORY" --notes "$(printf 'built %s\nhwp-pad %s\nrhwp %s + 이음 패치 %s + hwp-pad 패치 %s\nwasm sha256 %s' "$(date -u +%FT%TZ)" "$GITHUB_SHA" "${{ steps.base.outputs.commit }}" "${{ steps.base.outputs.ieumPatches }}" "${{ steps.ours.outputs.count }}" "$(sha256sum out/rhwp_bg.wasm | cut -d' ' -f1)")"

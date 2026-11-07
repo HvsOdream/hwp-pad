@@ -11,6 +11,9 @@
 
 빌드 전 규칙(프로토 기간): `VERSION` 올리고 → 아래에 한 줄 적고 → 빌드.
 
+## 0.4.3 — 2026-11-07
+- 엔진 직접 빌드 CI(`engine.yml`): 이음 빌드 도구로 rhwp wasm 을 다시 빌드하되 `engine-patches/*.patch`(우리 Rust 패치)를 이음 패치 뒤에 적용 → Release `engine` 자산. deploy 는 바탕이 같을 때만 그 엔진으로 vendor 를 덮어씀. 아직 패치 0개(이음과 동일 동작)
+
 ## 0.4.2 — 2026-11-07
 - 라이선스 고지 동봉: 사이트에 `LICENSE-ieumoffice.txt`(Apache-2.0), `NOTICE-ieumoffice.txt`(이음 NOTICE + 한컴 HWP 공개문서 고지), `fonts/licenses/`(글꼴 저작권·라이선스 전문). 조사 결과와 남은 일은 `THIRD_PARTY.md`, 우리 패치 목록은 `patches/README.md`
 - CI: `tests/fixtures/`의 양식을 upstream rhwp devel HEAD로 렌더하는 워크플로(`rhwp-devel-render.yml`). 게임학회 논문 양식 더미 재현 파일 추가(upstream #7282)

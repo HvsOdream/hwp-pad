@@ -57,6 +57,28 @@ jobs:
           ref: ${{ github.event.inputs.openoffice_ref || 'main' }}
           path: openoffice
 
+      # 우리가 직접 빌드한 엔진(engine.yml → release `engine`)이 있고, 그것이 지금 받은 이음 vendor 와
+      # 같은 바탕(base.json 의 vendorWasmSha256 == vendor/rhwp-core/package.json 의 wasmSha256)이면
+      # vendor 를 그 엔진으로 덮어쓴다. 바탕이 다르면(이음이 vendor 를 올렸음) 덮어쓰지 않고 알린다.
+      - name: Overlay our engine build (release `engine`) when its base matches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh release download engine --repo "$GITHUB_REPOSITORY" -D engine-dl --clobber 2>/dev/null; then
+            echo "engine release 없음 — 이음 vendor 그대로"; exit 0
+          fi
+          want=$(node -p 'require("./openoffice/vendor/rhwp-core/package.json").rhwp.wasmSha256')
+          base=$(node -p 'require("./engine-dl/base.json").vendorWasmSha256')
+          ours=$(node -p 'require("./engine-dl/base.json").hwpPadPatches')
+          if [ "$want" != "$base" ]; then
+            echo "::warning::engine release 의 바탕($base)이 지금 이음 vendor($want)와 다름 — engine.yml 을 다시 돌려야 함. 이음 vendor 로 빌드"
+            exit 0
+          fi
+          cp engine-dl/{rhwp.js,rhwp.d.ts,rhwp_bg.wasm,rhwp_bg.wasm.d.ts,package.json,LICENSE,THIRD_PARTY_LICENSES.md} openoffice/vendor/rhwp-core/
+          echo "engine 덮어씀: hwp-pad 패치 $ours 개, wasm $(sha256sum openoffice/vendor/rhwp-core/rhwp_bg.wasm | cut -c1-12)"
+          echo "ENGINE_PATCHES=$ours" >> "$GITHUB_ENV"
+
       - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
