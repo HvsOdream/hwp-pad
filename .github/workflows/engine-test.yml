@@ -1,0 +1,138 @@
+# 엔진 패치 회귀 검사 — rhwp(이음 고정 커밋) + 이음 패치 + engine-patches/*.patch 위에서
+# rhwp 라이브러리 테스트(cargo test --lib)를 돌린다. 실패가 있으면 우리 패치를 뺀 같은 소스에서
+# 그 테스트만 다시 돌려, 우리 패치 때문에 새로 깨진 것만 실패로 본다(원래 깨져 있던 것은 보고만).
+# 로컬 작업 공간에는 rhwp samples/ 가 없어(용량) 이 검사는 CI 에서만 돈다.
+
+name: Engine patch tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      openoffice_ref:
+        description: 'pblsketch/openoffice ref'
+        required: false
+        default: 'main'
+      filter:
+        description: 'cargo test 필터(비우면 lib 전체)'
+        required: false
+        default: ''
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'engine-patches/**'
+      - '.github/workflows/engine-test.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engine-test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  OPENOFFICE_REPO: pblsketch/openoffice
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout hwp-pad
+        uses: actions/checkout@v4
+
+      - name: Checkout openoffice
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.OPENOFFICE_REPO }}
+          ref: ${{ github.event.inputs.openoffice_ref || 'main' }}
+          path: openoffice
+
+      - name: Base commit
+        id: base
+        run: |
+          node -e '
+            const m=require("./openoffice/vendor/rhwp-core/package.json").rhwp;
+            console.log("commit="+m.commit); console.log("repo="+(m.repo||"edwardkim/rhwp"));
+          ' | tee -a "$GITHUB_OUTPUT"
+
+      - name: Checkout rhwp at 이음 base
+        run: |
+          set -euo pipefail
+          repo="${{ steps.base.outputs.repo }}"
+          repo="${repo#https://github.com/}"; repo="${repo%.git}"
+          git init -q rhwp && cd rhwp
+          git remote add origin "https://github.com/$repo.git"
+          git fetch -q --depth 1 origin "${{ steps.base.outputs.commit }}"
+          git checkout -q FETCH_HEAD
+          git -c user.name=ci -c user.email=ci@local commit -q --allow-empty -m base
+
+      - name: Apply 이음 patches
+        working-directory: rhwp
+        run: |
+          set -euo pipefail
+          node -e 'for (const p of require("../openoffice/vendor/rhwp-core/package.json").rhwp.patches) console.log(p)' > ../ieum-patches.txt
+          while read -r p; do git apply --whitespace=nowarn "../openoffice/vendor/rhwp-core/patches/$p"; done < ../ieum-patches.txt
+          git add -A && git -c user.name=ci -c user.email=ci@local commit -q -m ieum
+          echo "이음 패치 $(wc -l < ../ieum-patches.txt)개 적용"
+
+      - name: Apply hwp-pad patches
+        working-directory: rhwp
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for p in ../engine-patches/*.patch; do echo "apply $p"; git apply --whitespace=nowarn "$p"; done
+          git diff --stat
+
+      - name: Setup Rust
+        working-directory: rhwp
+        run: rustup show && cargo --version
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rhwp/target
+          key: engine-test-${{ runner.os }}-${{ steps.base.outputs.commit }}-${{ hashFiles('engine-patches/**') }}
+          restore-keys: engine-test-${{ runner.os }}-${{ steps.base.outputs.commit }}-
+
+      - name: cargo test --lib (with our patches)
+        id: ours
+        working-directory: rhwp
+        run: |
+          set -uo pipefail
+          cargo test --lib --no-fail-fast ${{ github.event.inputs.filter }} 2>&1 | tee ../ours.log | grep -E "^test result|FAILED|panicked" | tail -40
+          grep -E "^test .* \.\.\. FAILED$" ../ours.log | sed -E 's/^test (.*) \.\.\. FAILED$/\1/' | sort -u > ../ours-failed.txt
+          echo "failed=$(wc -l < ../ours-failed.txt)" >> "$GITHUB_OUTPUT"
+          grep -q "^test result" ../ours.log || { echo "테스트가 돌지 못함(컴파일 실패?)"; tail -60 ../ours.log; exit 1; }
+
+      - name: Re-run failures without our patches
+        if: steps.ours.outputs.failed != '0'
+        working-directory: rhwp
+        run: |
+          set -uo pipefail
+          git checkout -q -- . && git clean -fdq
+          : > ../base-failed.txt
+          while read -r t; do
+            if ! cargo test --lib -q "$t" -- --exact >/dev/null 2>&1; then echo "$t" >> ../base-failed.txt; fi
+          done < ../ours-failed.txt
+          echo "== 원래부터 실패(우리와 무관) =="; cat ../base-failed.txt
+          comm -23 ../ours-failed.txt <(sort -u ../base-failed.txt) > ../regressed.txt
+          echo "== 우리 패치로 새로 실패 =="; cat ../regressed.txt
+          if [ -s ../regressed.txt ]; then
+            for t in $(cat ../regressed.txt); do grep -A30 "^---- $t stdout ----" ../ours.log | head -40; done
+            exit 1
+          fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-test-logs
+          path: |
+            ours.log
+            ours-failed.txt
+            base-failed.txt
+            regressed.txt
+          if-no-files-found: ignore
