@@ -73,3 +73,7 @@ GitHub Pages에 PWA로 올린 것. 아이패드 사파리에서 "홈 화면에 �
 
 - 이음오피스: https://github.com/pblsketch/openoffice (apps/hwp, vendor/rhwp-core, scripts/build-studio.mjs)
 - rhwp: https://github.com/edwardkim/rhwp (완전판 데모: https://edwardkim.github.io/rhwp/)
+
+## 라이선스
+
+이 저장소의 자체 코드는 공개되어 있지만 자유 소프트웨어가 아닙니다(All rights reserved, `LICENSE`). 바탕이 되는 rhwp(MIT)·이음오피스(Apache-2.0)·OFL 글꼴은 각자의 라이선스를 따르며, 목록과 고지 의무는 `THIRD_PARTY.md`에 있습니다.
