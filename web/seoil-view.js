@@ -24,6 +24,7 @@
     'body.seoil-view #scroll-container{position:relative}',
     'body.seoil-view #editor-area{grid-template-columns:0 minmax(0,1fr) auto;grid-template-rows:0 minmax(0,1fr)}',
     'body.seoil-home-open #seoil-viewbar{display:none!important}',
+    'body.seoil-view #seoil-fill-bar{display:none!important}',
   ].join('\n');
 
   var ui = {}, on = false, pinch = null;
