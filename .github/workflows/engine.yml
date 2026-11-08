@@ -23,6 +23,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: engine
@@ -165,3 +166,11 @@ jobs:
               --notes "deploy.yml 이 쓰는 최신 엔진 빌드. engine.yml 이 덮어쓴다." --latest=false
           gh release upload engine out/* --repo "$GITHUB_REPOSITORY" --clobber
           gh release edit engine --repo "$GITHUB_REPOSITORY" --notes "$(printf 'built %s\nhwp-pad %s\nrhwp %s + 이음 패치 %s + hwp-pad 패치 %s\nwasm sha256 %s' "$(date -u +%FT%TZ)" "$GITHUB_SHA" "${{ steps.base.outputs.commit }}" "${{ steps.base.outputs.ieumPatches }}" "${{ steps.ours.outputs.count }}" "$(sha256sum out/rhwp_bg.wasm | cut -d' ' -f1)")"
+
+      # 사이트 배포는 이 엔진보다 먼저 끝나므로, 새 엔진으로 한 번 더 배포한다.
+      # (deploy.yml 의 workflow_run 트리거가 실제로 뜨지 않아 직접 부른다.)
+      - name: Redeploy site with this engine
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref main
