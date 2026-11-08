@@ -18,16 +18,16 @@ on:
       - '.github/workflows/rhwp-devel-render.yml'
       - 'docs/issues/**'
   workflow_dispatch:
-  # 엔진 빌드가 사이트 배포보다 늦게 끝나므로, 엔진이 새로 나오면 한 번 더 배포한다.
-  workflow_run:
-    workflows: ['Build engine (rhwp wasm + our patches)']
-    types: [completed]
-    branches: [main]
     inputs:
       openoffice_ref:
         description: 'pblsketch/openoffice ref to build (branch, tag or commit)'
         required: false
         default: 'main'
+  # 엔진 빌드가 사이트 배포보다 늦게 끝나므로, 엔진이 새로 나오면 한 번 더 배포한다.
+  workflow_run:
+    workflows: ['Build engine (rhwp wasm + our patches)']
+    types: [completed]
+    branches: [main]
   schedule:
     # 매주 월요일 03:00 KST(일 18:00 UTC) — openoffice 최신 main을 다시 빌드해 반영
     - cron: '0 18 * * 0'
