@@ -7,7 +7,7 @@
 // - AI는 Claude API를 브라우저에서 바로 부른다(파일럿: 키는 개발자 모드에서만). ?ai=mock 이면 정해진 답으로 흐름만 시험.
 (function () {
   'use strict';
-  var LS_KEY = 'seoil.ai.key', LS_MODEL = 'seoil.ai.model', LS_URL = 'seoil.ai.url', LS_DEV = 'seoil.ai.dev', LS_MOCK = 'seoil.ai.mock', LS_PROFILE = 'seoil.profile', LS_CODE = 'seoil.ai.code';
+  var LS_KEY = 'seoil.ai.key', LS_MODEL = 'seoil.ai.model', LS_URL = 'seoil.ai.url', LS_DEV = 'seoil.ai.dev', LS_MOCK = 'seoil.ai.mock', LS_PROFILE = 'seoil.profile', LS_CODE = 'seoil.ai.code', LS_TOKEN = 'seoil.ai.token';
   var DEFAULT_MODEL = 'claude-sonnet-5-5';
   var DEFAULT_URL = 'https://api.anthropic.com/v1/messages';
   // 학교 AI 중계 서버(proxy/). 학교 키는 서버에만 있고, 앱은 관리자가 나눠 준 「AI 사용 코드」만 보낸다.
@@ -209,19 +209,44 @@
 
   function ownKey() { return !!ls(LS_KEY); } // 개발자 모드에서 넣은 자기 키 → Claude API 직접
   function aiUrl() { return ls(LS_URL) || (ownKey() ? DEFAULT_URL : SCHOOL_URL); }
-  function ready() { return isMock() || ownKey() || (!!ls(LS_CODE) && !!aiUrl()); }
-  var NOT_READY_CODE = 'AI 사용 코드가 아직 없습니다. 위의 「설정」을 눌러 관리자에게 받은 코드를 넣어 주세요.';
-  function notReady() { return (!ls(LS_CODE) || ownKey()) ? NOT_READY_CODE : '학교 AI 서버가 아직 준비되지 않았습니다. 관리자에게 알려 주세요.'; }
-  function checkCode(out) {
-    if (!aiUrl()) { out.textContent = '학교 AI 서버가 아직 준비되지 않았습니다.'; return; }
-    out.textContent = '확인 중…';
-    fetch(aiUrl().replace(/\/v1\/messages$/, '/v1/me'), { headers: { 'x-seoil-code': ls(LS_CODE) } })
-      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status)); return j; }); })
-      .then(function (j) { out.textContent = j.name + ' · 오늘 ' + j.today + '/' + j.daily + '회'; })
-      .catch(function (e) { out.textContent = '확인 실패: ' + (e && e.message || e); });
+  function ready() { return isMock() || ownKey() || ((!!ls(LS_TOKEN) || !!ls(LS_CODE)) && !!aiUrl()); }
+  var NOT_READY_CODE = '로그인하면 AI 작성을 쓸 수 있습니다. 위의 「설정」에서 학교 이메일로 가입·로그인해 주세요.';
+  function notReady() { return (!(ls(LS_TOKEN) || ls(LS_CODE)) || ownKey()) ? NOT_READY_CODE : '학교 AI 서버가 아직 준비되지 않았습니다. 관리자에게 알려 주세요.'; }
+  // ---------- 로그인(학교 AI 계정) ----------
+  function srv(path) { return aiUrl().replace(/\/v1\/messages$/, path); }
+  function authHeaders() {
+    var h = { 'content-type': 'application/json' };
+    if (ls(LS_TOKEN)) h.authorization = 'Bearer ' + ls(LS_TOKEN); else if (ls(LS_CODE)) h['x-seoil-code'] = ls(LS_CODE);
+    return h;
+  }
+  function post(path, body) {
+    return fetch(srv(path), { method: 'POST', headers: authHeaders(), body: JSON.stringify(body || {}) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status)); return j; }); });
+  }
+  var meCache = null;
+  function fetchMe() {
+    return fetch(srv('/v1/me'), { headers: authHeaders() })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) { var e = new Error((j.error && j.error.message) || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; }); })
+      .then(function (j) { meCache = j; drawEngine(); return j; });
+  }
+  function meLine(j) {
+    if (!j) return '';
+    if (j.status) return j.name + ' · ' + ({ pending: '승인 대기', active: '이번 달 ' + j.used + '% 사용', off: '사용 중지' }[j.status] || j.status);
+    return j.name + ' · 오늘 ' + j.today + '/' + j.daily + '회';
+  }
+  function signedIn(res) {
+    ls(LS_TOKEN, res.token); meCache = res.user;
+    // 내 정보가 비어 있으면 가입 정보로 채운다
+    var p = profile(), u = res.user || {};
+    if (!p.name && u.name) { p.name = u.name; if (u.org && !p.org) p.org = u.org; if (u.dept && !p.dept) p.dept = u.dept; if (u.email && !p.email) p.email = u.email; ls(LS_PROFILE, JSON.stringify(p)); }
+    drawSettings(); drawEngine();
   }
   function mask(k) { return k ? k.slice(0, 7) + '…' + k.slice(-4) : ''; }
-  function drawEngine() { ui.engine.textContent = isMock() ? '시험 모드' : (ownKey() ? '내 키' : '학교 AI'); }
+  function drawEngine() {
+    ui.engine.textContent = isMock() ? '시험 모드' : ownKey() ? '내 키'
+      : (meCache && meCache.status === 'active') ? '학교 AI · ' + meCache.used + '%'
+      : (meCache && meCache.status === 'pending') ? '승인 대기' : '학교 AI';
+  }
   // 설정 화면: 대화 자리를 덮는 한 장. 위 「설정」을 다시 누르거나 「← 대화로」·Esc로 닫는다.
   function setOpen(on) {
     ui.setOn = !!on;
@@ -229,7 +254,9 @@
     ui.log.style.display = on ? 'none' : '';
     ui.ft.style.display = on ? 'none' : '';
     ui.setBtn.classList.toggle('on', !!on);
-    if (on) drawSettings(); else drawEngine();
+    ui.setBtn.textContent = on ? '← 대화' : '설정';
+    ui.setBtn.title = on ? '하던 대화로 돌아가기' : '내 정보·로그인·Claude 연결';
+    if (on) drawSettings(); else { drawEngine(); ui.log.scrollTop = ui.log.scrollHeight; ui.input.focus(); }
   }
   // 접히는 카드: 제목 · 한 줄 상태 · 펼치면 내용
   function card(title, sum, body, open) {
@@ -248,9 +275,9 @@
     drawEngine();
     ui.set.innerHTML = '';
     ui.set.appendChild(el('div', { class: 'row' }, [
-      el('button', { class: 'link', style: 'font-size:13px', text: '← 대화로', onclick: function () { setOpen(false); } }),
+      el('button', { class: 'send', style: 'height:32px;font-size:13px', text: '← 하던 대화로', onclick: function () { setOpen(false); } }),
       el('span', { style: 'flex:1' }),
-      el('span', { class: 'note', text: '모두 이 기기에만 저장됩니다' })]));
+      el('span', { class: 'note', text: '내 정보는 이 기기에만 저장됩니다' })]));
 
     // 1) 내 정보
     var p = profile(), inputs = {}, pSum = el('span', { class: 'sum', text: profileSum() });
@@ -267,20 +294,8 @@
     pCard = card('내 정보', pSum, pBody, !profile().name);
     ui.set.appendChild(pCard);
 
-    // 2) 학교 AI 코드
-    var code = el('input', { type: 'text', placeholder: 'SEOIL-XXXX-XXXX', value: ls(LS_CODE), autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false' });
-    var cSum = el('span', { class: 'sum', text: ls(LS_CODE) ? '확인 중…' : '코드 없음' });
-    var cCard = card('학교 AI', cSum, [
-      el('div', { class: 'note', text: '관리자에게 받은 AI 사용 코드를 넣으면 AI 작성을 쓸 수 있습니다.' }),
-      code,
-      el('div', { class: 'row' }, [el('button', { class: 'send', style: 'height:34px', text: '저장', onclick: function () {
-        var v = code.value.trim().toUpperCase(); ls(LS_CODE, v || null); code.value = v;
-        if (v) { checkCode(cSum); cCard.fold(); } else cSum.textContent = '코드 없음';
-        drawEngine();
-      } })]),
-    ], !ls(LS_CODE));
-    ui.set.appendChild(cCard);
-    if (ls(LS_CODE)) checkCode(cSum);
+    // 2) 학교 AI 로그인 (예전 사용 코드는 「코드로 쓰기」 안에)
+    ui.set.appendChild(accountCard());
 
     // 3) 설치판: 내 Claude(데스크톱·Claude Code)가 서일 오피스를 다루게
     var D = window.seoilDesktop;
@@ -309,6 +324,62 @@
       el('button', { class: 'chip', text: '칸 지도 보기', onclick: function () { var m = scan(); say('sys', m ? window.SeoilFill.mapText(m) : '양식 없음'); } }),
       el('button', { class: 'chip', text: '개발자 모드 끄기', onclick: function () { ls(LS_DEV, null); setOpen(false); } }),
     ]));
+  }
+
+  function accountCard() {
+    var sum = el('span', { class: 'sum', text: ls(LS_TOKEN) ? (meCache ? meLine(meCache) : '확인 중…') : ls(LS_CODE) ? '사용 코드로 쓰는 중' : '로그인 안 함' });
+    var msg = el('div', { class: 'note' });
+    function err(e) { msg.style.color = '#B42318'; msg.textContent = (e && e.message) || String(e); }
+    function note(t) { msg.style.color = ''; msg.textContent = t; }
+    var body = [];
+    if (ls(LS_TOKEN)) {
+      var oldPw = el('input', { type: 'password', placeholder: '지금 비밀번호', autocomplete: 'current-password' });
+      var newPw = el('input', { type: 'password', placeholder: '새 비밀번호 (8자 이상)', autocomplete: 'new-password' });
+      var pwBox = el('div', { class: 'body', style: 'display:none' }, [oldPw, newPw, el('div', { class: 'row' }, [el('button', { class: 'send', style: 'height:32px', text: '바꾸기', onclick: function () {
+        post('/v1/password', { old: oldPw.value, new: newPw.value }).then(function () { oldPw.value = newPw.value = ''; pwBox.style.display = 'none'; note('비밀번호를 바꿨습니다.'); }, err);
+      } })])]);
+      body.push(el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' }, [
+        el('button', { class: 'chip', text: '비밀번호 바꾸기', onclick: function () { pwBox.style.display = pwBox.style.display === 'none' ? '' : 'none'; } }),
+        el('button', { class: 'chip', text: '로그아웃', onclick: function () { post('/v1/logout').catch(function () {}).then(function () { ls(LS_TOKEN, null); meCache = null; drawSettings(); }); } }),
+      ]), pwBox, msg);
+      fetchMe().then(function (j) {
+        sum.textContent = meLine(j);
+        if (j.status === 'pending') note('관리자가 가입을 승인하면 바로 쓸 수 있습니다.');
+        else if (j.status === 'active') note(j.email + ' · 이번 달 사용량 ' + j.used + '% (매달 1일에 다시 채워집니다)');
+      }, function (e) { if (e.status === 401) { ls(LS_TOKEN, null); meCache = null; sum.textContent = '로그인 안 함'; } err(e); });
+      return card('학교 AI', sum, body, false);
+    }
+    // 로그인 / 가입
+    var mode = 'login';
+    var email = el('input', { type: 'email', placeholder: '이메일 (학교 메일)', autocomplete: 'username', autocapitalize: 'off', spellcheck: 'false' });
+    var pw = el('input', { type: 'password', placeholder: '비밀번호 (8자 이상)', autocomplete: 'current-password' });
+    var p = profile();
+    var nm = el('input', { type: 'text', placeholder: '이름', value: p.name || '' });
+    var org = el('input', { type: 'text', placeholder: '소속 (예: 서일대학교)', value: p.org || '' });
+    var dept = el('input', { type: 'text', placeholder: '학과·부서', value: p.dept || '' });
+    var extra = el('div', { class: 'body', style: 'display:none' }, [nm, org, dept]);
+    var go = el('button', { class: 'send', style: 'height:34px', text: '로그인' });
+    var sw = el('button', { class: 'link', text: '처음이면 가입하기' });
+    function setMode(m) { mode = m; extra.style.display = m === 'signup' ? '' : 'none'; go.textContent = m === 'signup' ? '가입' : '로그인'; sw.textContent = m === 'signup' ? '이미 가입했으면 로그인' : '처음이면 가입하기'; pw.autocomplete = m === 'signup' ? 'new-password' : 'current-password'; note(''); }
+    sw.addEventListener('click', function () { setMode(mode === 'login' ? 'signup' : 'login'); });
+    go.addEventListener('click', function () {
+      go.disabled = true; note(mode === 'signup' ? '가입하는 중…' : '로그인하는 중…');
+      var req = mode === 'signup'
+        ? post('/v1/signup', { email: email.value, password: pw.value, name: nm.value, org: org.value, dept: dept.value })
+        : post('/v1/login', { email: email.value, password: pw.value });
+      req.then(function (res) { ls(LS_CODE, null); signedIn(res); say('sys', res.user && res.user.status === 'pending' ? '가입했습니다. 관리자가 승인하면 AI 작성을 쓸 수 있습니다.' : '로그인했습니다.'); }, function (e) { go.disabled = false; err(e); });
+    });
+    pw.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) go.click(); });
+    // 예전 방식: 관리자가 준 사용 코드
+    var code = el('input', { type: 'text', placeholder: 'SEOIL-XXXX-XXXX', value: ls(LS_CODE), autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false' });
+    var codeBox = el('div', { class: 'body', style: 'display:none' }, [code, el('div', { class: 'row' }, [el('button', { class: 'chip', text: '코드 저장', onclick: function () {
+      var v = code.value.trim().toUpperCase(); ls(LS_CODE, v || null); code.value = v; drawEngine();
+      if (v) fetchMe().then(function (j) { sum.textContent = meLine(j); note('코드 확인: ' + meLine(j)); }, err); else sum.textContent = '로그인 안 함';
+    } })])]);
+    body.push(el('div', { class: 'note', text: '학교 이메일로 가입하면 AI 작성을 쓸 수 있습니다. 한 달 사용량 안에서 마음껏 쓰고, 매달 1일에 다시 채워집니다.' }),
+      email, pw, extra, el('div', { class: 'row', style: 'gap:10px' }, [go, sw]), msg,
+      el('button', { class: 'link', style: 'align-self:flex-start;font-size:12px', text: '관리자에게 받은 사용 코드로 쓰기', onclick: function () { codeBox.style.display = codeBox.style.display === 'none' ? '' : 'none'; } }), codeBox);
+    return card('학교 AI', sum, body, true);
   }
 
   function claudeCard(D) {
@@ -366,7 +437,7 @@
       .catch(function (e) { t.remove(); say('err', '키 시험 실패: ' + (e && e.message || e)); });
   }
   function apiHeaders() {
-    if (!ownKey()) return { 'content-type': 'application/json', 'x-seoil-code': ls(LS_CODE) };
+    if (!ownKey()) return authHeaders();
     return { 'content-type': 'application/json', 'x-api-key': ls(LS_KEY), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' };
   }
 
@@ -396,7 +467,7 @@
     ui.panel.classList.toggle('open', open);
     document.body.classList.toggle('seoil-ai-open', open);
     setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 50);
-    if (open) { refreshForm(); if (!S.msgs.length && !ui.log.childNodes.length) greet(); ui.input.focus(); }
+    if (open) { refreshForm(); if (!S.msgs.length && !ui.log.childNodes.length) greet(); ui.input.focus(); if (!meCache && ls(LS_TOKEN) && !ownKey()) fetchMe().catch(function () {}); }
   }
   function openPanel(on) { if (ui.panel.classList.contains('open') !== (on !== false)) toggle(); else refreshForm(); }
 
@@ -549,6 +620,7 @@
       thinking.remove();
       S.msgs.push({ role: 'assistant', content: res.content });
       handle(res.content);
+      if (!isMock() && !ownKey() && ls(LS_TOKEN)) fetchMe().catch(function () {});
     }).catch(function (err) {
       thinking.remove(); S.msgs.pop();
       say('err', 'AI 호출 실패: ' + (err && err.message || err));

@@ -14,6 +14,9 @@ MODEL = "claude-sonnet-5-5"
 MODELS = "claude-sonnet-5-5,claude-haiku-5-5"
 MAX_TOKENS = "8000"
 DEFAULT_DAILY = "50"
+# 로그인 사용자: 한 달 사용량(입력 환산 토큰, 약 $9 — Sonnet 입력 $3/M 기준)과 하루 요청 안전 상한
+DEFAULT_BUDGET = "3000000"
+USER_DAILY = "300"
 MONTH_CAP = "0"
 ORIGINS = "https://hvsodream.github.io,capacitor://localhost,http://localhost:8765"
 # 교내 sLLM으로 바꿀 때: BACKEND = "openai", SLLM_URL = "https://…", SLLM_MODEL = "…" (SLLM_KEY는 시크릿)

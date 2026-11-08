@@ -551,7 +551,7 @@
       el('div', { class: 'top' }, [
         el('span', { class: 'logo', text: '서일' }), el('b', { style: 'font-size:16px', text: '서일 오피스' }), el('span', { style: 'flex:1' }),
         ui.back,
-        el('button', { type: 'button', class: 'me', text: '내 정보', onclick: function () { close(); if (window.SeoilAI) { window.SeoilAI.open(true); var b = document.querySelector('#seoil-ai .hd .ibtn[title="내 정보·설정"]'); if (b) b.click(); } } }),
+        el('button', { type: 'button', class: 'me', text: '내 정보', onclick: function () { close(); if (window.SeoilAI) { window.SeoilAI.open(true); if (window.SeoilAI.settings) window.SeoilAI.settings(true); } } }),
       ]),
       ui.main,
       ui.ver = el('div', { class: 'ver', title: '누르면 복사', text: '', onclick: function () { try { navigator.clipboard.writeText(ui.ver.textContent); busy(false, '버전 정보를 복사했습니다.'); } catch (e) {} } }),
