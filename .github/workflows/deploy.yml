@@ -588,8 +588,11 @@ jobs:
             '<script src="seoil-agent.js" defer></script>',
             `<!-- built from ${process.env.OPENOFFICE_REPO} @ ${new Date().toISOString()} by hwp-pad ${process.env.OPENOFFICE_SHA} -->`,
           ].join('\n    ');
+          // 우리 스크립트는 파일명이 고정이라 브라우저 캐시(Pages 10분)에 옛 것이 남는다 → 빌드 번호를 붙인다
+          const bust = process.env.GITHUB_RUN_NUMBER || String(Date.now());
+          const injectV = inject.replace(/<script src="([\w.-]+\.js)"/g, (m, f) => `<script src="${f}?v=${bust}"`);
           if (!/rel="manifest"/.test(html)) {
-            html = html.replace(/<\/head>/i, `    ${inject}\n  </head>`);
+            html = html.replace(/<\/head>/i, `    ${injectV}\n  </head>`);
           }
           // 아이패드 홈화면 모드에서 노치/홈바 영역까지 쓰도록
           html = html.replace(
