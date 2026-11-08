@@ -1,0 +1,76 @@
+From c8121abc6fca79f7eb58e462fa0c371c11142794 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=EA=B9=80=EB=AF=BC=EC=B2=A0?= <withsky0@gmail.com>
+Date: Sun, 8 Nov 2026 15:26:20 +0900
+Subject: [PATCH] =?UTF-8?q?[hwp-pad]=20=EC=A2=8C=EC=9A=B0=C2=B7=EC=83=81?=
+ =?UTF-8?q?=ED=95=98=20=EB=8C=80=EC=B9=AD=ED=95=9C=20=EA=B8=80=EC=83=81?=
+ =?UTF-8?q?=EC=9E=90=EC=9D=98=20=EA=B8=80=EC=9E=90=EB=A5=BC=20=EA=B1=B0?=
+ =?UTF-8?q?=EC=9A=B8=20=EA=B8=80=EC=9E=90=EB=A1=9C=20=EA=B7=B8=EB=A6=AC?=
+ =?UTF-8?q?=EC=A7=80=20=EC=95=8A=EC=9D=8C?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+재현: hwp-pad tests/fixtures/kgs-paper-template-dummy.hwp 바탕쪽 꼬리말 글상자
+(SHAPE_COMPONENT flip=0x1000001, 좌우 대칭). 한글 NEO 출력은 「…논문집 ❙ 1」이 바로 읽히는데
+layer 경로(web_canvas·skia)는 사각형 변환 행렬을 글상자 하위 글자에도 걸어 거울 글자로 그렸다.
+SVG 호환 경로는 묶음 행렬을 쓰지 않아 원래 바로 그려졌다.
+
+- 대칭만 있으면 테두리 primitive 에만 대칭을 두고 하위 글자는 그대로
+- 대칭+회전이면 하위 묶음에는 화면 회전(reflected_rotation)만, 테두리에는 대칭만
+- 회전만 있으면 종전처럼 묶음 행렬이 테두리·글자 모두를 돌린다
+---
+ src/paint/builder.rs | 35 ++++++++++++++++++++++++++++++++---
+ 1 file changed, 32 insertions(+), 3 deletions(-)
+
+diff --git a/src/paint/builder.rs b/src/paint/builder.rs
+index 149b01413..fdf7a8a5c 100644
+--- a/src/paint/builder.rs
++++ b/src/paint/builder.rs
+@@ -366,12 +366,41 @@ impl LayerBuilder {
+         // A rectangle transform owns its text/clip descendants too. Primitive
+         // paint transforms affect only the outline, so move it to one common
+         // subtree group and clear the primitive transform to avoid double use.
++        // [hwp-pad] 대칭(뒤집기)은 글상자 테두리에만 적용하고 안의 글자는 뒤집지 않는다 —
++        // 한글은 좌우 대칭한 글상자의 글을 거울 글자로 그리지 않는다(학회 논문 양식 바탕쪽
++        // 꼬리말 글상자 flip=0x1000001: 한글 NEO 출력은 바로 읽히는 글자). 회전은 글자도 따른다.
++        // 대칭만 있으면 이 분기를 타지 않아 테두리 primitive 만 대칭되고, 대칭+회전이면
++        // 하위 묶음에는 화면에 보이는 회전만, 테두리 primitive 에는 대칭만 남긴다.
++        let rect_flip_only = matches!(&node.node_type, RenderNodeType::Rectangle(rect)
++            if rect.transform.rotation == 0.0);
+         if let RenderNodeType::Rectangle(rect) = &node.node_type {
+-            if rect.transform.has_transform() && !node.children.is_empty() {
+-                let matrix = rect.transform.matrix_about(node.bbox);
++            if rect.transform.has_transform()
++                && !node.children.is_empty()
++                && !(rect_flip_only && (rect.transform.horz_flip || rect.transform.vert_flip))
++            {
++                let flipped = rect.transform.horz_flip || rect.transform.vert_flip;
++                let descendant = if flipped {
++                    crate::renderer::render_tree::ShapeTransform {
++                        rotation: rect.transform.reflected_rotation(),
++                        horz_flip: false,
++                        vert_flip: false,
++                        image_frame_ratio: rect.transform.image_frame_ratio,
++                    }
++                } else {
++                    rect.transform
++                };
++                let matrix = descendant.matrix_about(node.bbox);
+                 let mut local = node.clone();
+                 if let RenderNodeType::Rectangle(rect) = &mut local.node_type {
+-                    rect.transform = Default::default();
++                    // 테두리에는 대칭만 남긴다(회전은 묶음 행렬이 맡는다).
++                    rect.transform = crate::renderer::render_tree::ShapeTransform {
++                        rotation: 0.0,
++                        image_frame_ratio: None,
++                        ..rect.transform
++                    };
++                    if !flipped {
++                        rect.transform = Default::default();
++                    }
+                 }
+                 let previous_context = self.page_context;
+                 self.page_context = self
+-- 
+2.43.0
+
