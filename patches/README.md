@@ -13,6 +13,7 @@
 | `dirty-state.mjs` | `src/main.ts` | `window.rhwpStudio.isDirty()` — 홈 「저장하고 닫기」가 저장 완료를 알 수 있게 |
 | `hancom-web.mjs` | `src/engine` | 한글 2024 단축키 중 브라우저에서 비는 것 보완 |
 | `ios-input.mjs` | `src/engine` | iOS contenteditable 입력 앵커 초기화 |
+| `master-page-hit.mjs` | `src/engine` | 바탕쪽 그림·도형이 본문 클릭을 가로채지 않게 (엔진 9005 `masterPage`) |
 | `native-bridge.mjs` | `src/engine` | `window.rhwpStudio.openBytes()` — 바이트로 문서 열기(iOS·MCP) |
 | `page-auto.mjs` | `src/core` | 쪽 배치 기본값 「한 쪽」→「자동」(줄이면 여러 쪽을 옆으로, 한 번만 기존 설정 이전) |
 | `nested-cell-line.mjs` | `src/engine`, `src/core` | 표 안의 표 칸에서 Home/End·Shift+End 가 맞는 줄로 (엔진 9003 `getLineInfoByPath`) |
