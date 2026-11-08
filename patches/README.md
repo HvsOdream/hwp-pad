@@ -10,6 +10,7 @@
 | `ai-bridge.mjs` | rhwp-studio `src/engine` | `window.rhwpStudio.ai`(열린 문서·변경 알림·파일명) 노출 — AI 패널 연결 |
 | `branding.mjs` | `src/ui`, `index.html` | 탭 제목 「rhwp-studio」→「서일 오피스」 |
 | `char-shape-caret.mjs` | `src/engine` | 블록 없이 글자 모양(Alt+L) 열고 캐럿 서식으로 적용 |
+| `dirty-state.mjs` | `src/main.ts` | `window.rhwpStudio.isDirty()` — 홈 「저장하고 닫기」가 저장 완료를 알 수 있게 |
 | `hancom-web.mjs` | `src/engine` | 한글 2024 단축키 중 브라우저에서 비는 것 보완 |
 | `ios-input.mjs` | `src/engine` | iOS contenteditable 입력 앵커 초기화 |
 | `native-bridge.mjs` | `src/engine` | `window.rhwpStudio.openBytes()` — 바이트로 문서 열기(iOS·MCP) |

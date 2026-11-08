@@ -73,9 +73,20 @@
     '#seoil-home .x:hover{background:#F4F5F7}',
     '#seoil-home .empty{border:2px dashed #D5D9DF;border-radius:12px;padding:28px 20px;text-align:center;font-size:13px;color:#5F6670;line-height:1.6}',
     '#seoil-home .rc{display:flex;align-items:center;gap:6px;border:1px solid #EEF0F3;border-radius:10px;background:#FAFAFB;padding:4px 4px 4px 0}',
-    '#seoil-home .rc .open{flex:1;min-width:0;font:inherit;text-align:left;border:0;background:none;padding:8px 6px 8px 14px;cursor:pointer;display:flex;flex-direction:column;gap:4px;color:#1C1F23}',
+    '#seoil-home .rc .open{flex:1 1 0;min-width:0;width:0;overflow:hidden;font:inherit;text-align:left;border:0;background:none;padding:8px 6px 8px 14px;cursor:pointer;display:flex;flex-direction:column;align-items:stretch;gap:4px;color:#1C1F23}',
     '#seoil-home .rc .open:hover b{color:#2F5BEA}',
-    '#seoil-home .rc b{font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}',
+    '#seoil-home .rc b{font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;width:100%;min-width:0}',
+    '#seoil-home .rc .meta{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    // 편집 중인 문서 카드
+    '#seoil-home .now{display:flex;align-items:center;gap:14px;flex-wrap:wrap;border:1px solid #C9D6FB;background:#F5F8FF;border-radius:14px;padding:14px 16px}',
+    '#seoil-home .now .ic{width:40px;height:40px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;flex:none}',
+    '#seoil-home .now .nt{flex:1 1 220px;min-width:0;display:flex;flex-direction:column;gap:2px}',
+    '#seoil-home .now .nt small{font-size:12px;color:#5F6670}',
+    '#seoil-home .now .nt b{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '#seoil-home .now .acts{display:flex;gap:8px;flex-wrap:wrap}',
+    '#seoil-home .now button{font:inherit;font-size:13px;height:38px;padding:0 14px;border-radius:10px;cursor:pointer;white-space:nowrap;border:1px solid #D5D9DF;background:#fff;color:#1C1F23}',
+    '#seoil-home .now button.pri{border:0;background:#2F5BEA;color:#fff;font-weight:600}',
+    '#seoil-home .now button:hover{border-color:#2F5BEA}',
     '#seoil-home .rc .tag{font-size:11px;color:#5F6670;border:1px solid #D5D9DF;border-radius:6px;padding:0 6px;margin-right:6px;font-weight:400}',
     '#seoil-home .rc .meta{font-size:12px;color:#5F6670}',
     '#seoil-home .msg{font-size:13px;color:#B42318;text-align:center;min-height:1px}',
@@ -200,8 +211,9 @@
       })();
     });
   }
-  var nextTag = null;
+  var nextTag = null, justClosed = false;
   async function openBytes(bytes, name, tag) {
+    cur.closed = false; justClosed = false;
     var open = window.rhwpStudio && window.rhwpStudio.openBytes;
     if (typeof open !== 'function') throw new Error('편집기가 아직 준비되지 않았습니다');
     await snapshot(false);
@@ -234,6 +246,7 @@
   }
   function newDoc() {
     snapshot(false);
+    cur.closed = false; justClosed = false;
     nextTag = '새 문서';
     var it = document.querySelector('[data-cmd="file:new-doc"]');
     close();
@@ -252,9 +265,24 @@
     // 새 빈 문서로 바뀌면 홈으로. 편집기가 같은 문서 객체를 다시 쓰기도 해서 이름 바뀜도 본다.
     // 저장 확인에서 취소하면(2분 안에 안 바뀌면) 그대로 둔다
     for (var t0 = Date.now(); Date.now() - t0 < 120000; ) {
-      if (doc() && (doc() !== before || fileName() !== name0)) { open(); return; }
+      if (doc() && (doc() !== before || fileName() !== name0)) { if (doc() === cur.doc) cur.closed = true; else justClosed = true; open(); return; }
       await new Promise(function (r) { setTimeout(r, 150); });
     }
+  }
+  /** 저장하고 닫기: 바뀐 게 있으면 편집기 「저장」(처음 저장이면 저장 위치를 묻는다) → 저장이 끝나면 문서 닫기 */
+  async function saveAndClose() {
+    var R = window.rhwpStudio;
+    var dirty = R && typeof R.isDirty === 'function' ? function () { return R.isDirty(); } : null;
+    if (dirty && dirty()) {
+      var it = document.querySelector('[data-cmd="file:save"]');
+      if (!it) { busy(false, '저장 메뉴를 찾지 못했습니다. 파일 › 저장 후 닫아 주세요.'); return; }
+      close();
+      it.classList.remove('disabled'); it.click();
+      // 저장 위치 고르기에서 취소하면(2분 안에 저장이 안 끝나면) 문서를 그대로 둔다
+      for (var t0 = Date.now(); dirty() && Date.now() - t0 < 120000; ) await new Promise(function (r) { setTimeout(r, 200); });
+      if (dirty()) return;
+    }
+    await closeDoc();
   }
   /** 기본 양식 파일(web/forms)을 양식으로 연다 — 내 양식에는 따로 남기지 않는다 */
   async function openBuiltin(file, name) {
@@ -398,10 +426,22 @@
     });
   }
 
+  function drawNow() {
+    var name = fileName();
+    var editing = !!(doc() && cur.doc && name && !cur.closed);
+    ui.back.style.display = editing ? '' : 'none';
+    ui.now.style.display = editing ? '' : 'none';
+    if (!editing) return;
+    var R = window.rhwpStudio, dirty = R && typeof R.isDirty === 'function' && R.isDirty();
+    ui.nowName.textContent = stem(name);
+    ui.nowName.title = name;
+    ui.nowState.textContent = '편집 중인 문서' + (dirty ? ' · 저장 안 한 변경 있음' : '');
+    ui.nowSave.textContent = dirty ? '저장하고 닫기' : '닫기';
+  }
   function open() {
     snapshot(false).then(drawRecent);
     drawForms(); drawRecent();
-    ui.back.style.display = doc() && cur.doc && fileName() ? '' : 'none';
+    drawNow();
     ui.root.classList.add('open'); document.body.classList.add('seoil-home-open');
     ui.bar.classList.remove('open');
   }
@@ -413,6 +453,7 @@
     var d = doc();
     if (!d || d === cur.doc) return;
     cur = { doc: d, tag: nextTag || '파일', name: fileName(), sig: '' };
+    if (justClosed) { cur.closed = true; justClosed = false; } // 닫기로 생긴 빈 문서는 「편집 중」으로 안 친다
     nextTag = null;
     ui.bar.classList.remove('open');
     if (isOpen() || cur.tag === '새 문서' || !window.SeoilFill || /^새 문서/.test(cur.name)) return;
@@ -465,11 +506,20 @@
     ui.forms = el('div', { style: 'display:flex;flex-direction:column;gap:6px' });
     ui.recent = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
     ui.back = el('button', { type: 'button', class: 'back', text: '← 편집 중인 문서로', onclick: close });
+    ui.now = el('section', { class: 'now', 'aria-label': '편집 중인 문서', style: 'display:none' }, [
+      el('span', { class: 'ic' }, [svg('<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 13h6M9 16h4"/>', '#2F5BEA')]),
+      el('span', { class: 'nt' }, [ui.nowState = el('small', { text: '편집 중인 문서' }), ui.nowName = el('b', { text: '' })]),
+      el('span', { class: 'acts' }, [
+        el('button', { type: 'button', class: 'pri', text: '이어서 편집', onclick: close }),
+        ui.nowSave = el('button', { type: 'button', text: '저장하고 닫기', title: '저장한 뒤 문서를 닫습니다(Ctrl+F4 는 저장 여부를 묻고 닫기)', onclick: saveAndClose }),
+      ]),
+    ]);
     ui.main = el('main', {}, [
       el('div', { style: 'display:flex;flex-direction:column;gap:18px' }, [
         el('h1', { text: '무엇을 쓸까요?' }),
         el('label', { class: 'search' }, [svg('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'), ui.search]),
       ]),
+      ui.now,
       el('div', { class: 'doors' }, [
         door('', '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 11v6M9 14h6"/>', '#1C1F23', '새 문서', 'A4 빈 문서로 바로 씁니다. 오른쪽 AI에게 초안을 부탁해도 됩니다.', 'Ctrl+N', newDoc),
         door('main', '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M10 10v10"/><path d="M13 14.5h4M13 17h3"/>', '#FFFFFF', '양식 채우기', '공문에 붙어 온 hwp 양식을 원본 그대로 열고, 빈칸을 AI와 채웁니다.', 'hwp·hwpx를 화면에 놓아도 됩니다', pickForm),
@@ -591,12 +641,12 @@
     if (!R || typeof R.openBytes !== 'function') return setTimeout(hookOpen, 300);
     if (R.openBytes.__seoilHome) return;
     var orig = R.openBytes;
-    R.openBytes = function () { try { close(); } catch (e) {} return orig.apply(this, arguments); };
+    R.openBytes = function () { try { close(); cur.closed = false; justClosed = false; } catch (e) {} return orig.apply(this, arguments); };
     R.openBytes.__seoilHome = true;
   })();
   window.addEventListener('keydown', function (e) {
     if (e.key === 'F4' && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && !isOpen()) { e.preventDefault(); e.stopPropagation(); closeDoc(); }
   }, true);
-  window.SeoilStart = { open: open, close: close, closeDoc: closeDoc, pickForm: pickForm, openForm: openForm, newDoc: newDoc, newReport: newReport, forkCopy: forkCopy };
+  window.SeoilStart = { open: open, close: close, closeDoc: closeDoc, saveAndClose: saveAndClose, pickForm: pickForm, openForm: openForm, newDoc: newDoc, newReport: newReport, forkCopy: forkCopy };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();
