@@ -77,16 +77,30 @@ function createWindow() {
   });
 
   // 저장 안 한 변경이 있을 때(웹의 beforeunload) 닫기 확인
+  // 한글처럼 「저장 / 저장 안 함 / 취소」. 저장을 고르면 편집기 저장(처음이면 저장 위치를 묻는다)이
+  // 끝난 뒤 창을 닫고, 저장 위치 고르기를 취소하면 창을 그대로 둔다.
   win.webContents.on('will-prevent-unload', (e) => {
     const r = dialog.showMessageBoxSync(win, {
       type: 'question',
-      buttons: ['닫기', '취소'],
-      defaultId: 1,
-      cancelId: 1,
+      buttons: ['저장', '저장 안 함', '취소'],
+      defaultId: 0,
+      cancelId: 2,
+      noLink: true,
       title: '서일 오피스',
-      message: '저장하지 않은 변경이 있습니다. 그래도 닫을까요?',
+      message: '저장하지 않은 변경이 있습니다. 저장할까요?',
     });
-    if (r === 0) e.preventDefault();
+    if (r === 1) { e.preventDefault(); return; }
+    if (r !== 0) return;
+    win.webContents.executeJavaScript(`(async () => {
+      const R = window.rhwpStudio, it = document.querySelector('[data-cmd="file:save"]');
+      if (!R || typeof R.isDirty !== 'function' || !it) return false;
+      it.classList.remove('disabled'); it.click();
+      for (const t0 = Date.now(); R.isDirty() && Date.now() - t0 < 120000; ) await new Promise((r) => setTimeout(r, 200));
+      return !R.isDirty();
+    })()`, true).then((saved) => {
+      if (saved && !win.isDestroyed()) win.destroy();
+      else if (!saved && !win.isDestroyed()) dialog.showMessageBox(win, { type: 'info', title: '서일 오피스', message: '저장하지 않아 창을 닫지 않았습니다.', buttons: ['확인'] });
+    }).catch(() => {});
   });
 
   // 개발용: F12 개발자 도구, Ctrl+Shift+F5 새로 불러오기(캐시 무시)

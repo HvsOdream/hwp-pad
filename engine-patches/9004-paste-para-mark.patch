@@ -1,0 +1,82 @@
+From 60622a022ea3020c7ccdb1369966274f51d58d56 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=EA=B9=80=EB=AF=BC=EC=B2=A0?= <withsky0@gmail.com>
+Date: Sun, 8 Nov 2026 16:20:26 +0900
+Subject: [PATCH] =?UTF-8?q?[hwp-pad]=20=EC=97=AC=EB=9F=AC=20=EB=AC=B8?=
+ =?UTF-8?q?=EB=8B=A8=20=EB=B6=99=EC=97=AC=EB=84=A3=EA=B8=B0=EC=97=90?=
+ =?UTF-8?q?=EC=84=9C=20=EB=AC=B8=EB=8B=A8=20=EB=AA=A8=EC=96=91=EC=9D=B4=20?=
+ =?UTF-8?q?=EB=AC=B8=EB=8B=A8=20=EB=81=9D=20=ED=91=9C=EC=8B=9C=EB=A5=BC=20?=
+ =?UTF-8?q?=EB=94=B0=EB=9D=BC=EA=B0=80=EA=B2=8C?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+한글 규칙: 문단 모양·스타일은 문단 끝 표시를 따른다. 캐럿 자리에 여러 문단을 붙이면 첫 문단은
+클립보드 첫 문단 모양, 마지막 문단은 원래 문단 모양. 종전에는 반대로 남아 표 칸 등에 붙여 넣은
+문단의 정렬·여백·줄 간격이 원래 칸 것으로 바뀌었다. 본문·셀·중첩 셀 경로 공통.
+---
+ src/document_core/commands/clipboard.rs | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/src/document_core/commands/clipboard.rs b/src/document_core/commands/clipboard.rs
+index acaabc57f6..821fd73aed 100644
+--- a/src/document_core/commands/clipboard.rs
++++ b/src/document_core/commands/clipboard.rs
+@@ -921,6 +921,7 @@ impl DocumentCore {
+         }
+ 
+         // 다중 문단 또는 컨트롤 포함 붙여넣기
++        let target_mark = hwppad_para_mark(&self.document.sections[section_idx].paragraphs[para_idx]);
+         // 1. 현재 문단을 캐럿 위치에서 분할
+         let right_half =
+             self.document.sections[section_idx].paragraphs[para_idx].split_at(char_offset);
+@@ -941,6 +942,11 @@ impl DocumentCore {
+         let last_para_idx = insert_idx - 1;
+         let merge_point =
+             self.document.sections[section_idx].paragraphs[last_para_idx].merge_from(&right_half);
++        if clip_count > 1 {
++            let paras = &mut self.document.sections[section_idx].paragraphs;
++            hwppad_set_para_mark(&mut paras[para_idx], hwppad_para_mark(&clip_paras[0]));
++            hwppad_set_para_mark(&mut paras[last_para_idx], target_mark);
++        }
+ 
+         // 5. 영향받는 모든 문단 리플로우
+         for i in para_idx..=last_para_idx {
+@@ -1011,6 +1017,7 @@ impl DocumentCore {
+             return Ok((cell_para_idx, char_offset + new_chars));
+         }
+ 
++        let target_mark = hwppad_para_mark(&cell_paras[cell_para_idx]);
+         let split_offset =
+             text_to_split_logical_offset(&cell_paras[cell_para_idx], char_offset, false);
+         let right_half = cell_paras[cell_para_idx].split_at(split_offset);
+@@ -1024,6 +1031,10 @@ impl DocumentCore {
+ 
+         let last_para_idx = insert_idx - 1;
+         let merge_point = cell_paras[last_para_idx].merge_from(&right_half);
++        if clip_count > 1 {
++            hwppad_set_para_mark(&mut cell_paras[cell_para_idx], hwppad_para_mark(&clip_paras[0]));
++            hwppad_set_para_mark(&mut cell_paras[last_para_idx], target_mark);
++        }
+         Ok((last_para_idx, merge_point))
+     }
+ 
+@@ -2777,3 +2788,16 @@ mod cell_control_export_tests {
+         );
+     }
+ }
++
++// [hwp-pad] 문단 모양·스타일은 문단 끝 표시(¶)를 따라간다(한글 규칙).
++// 여러 문단을 캐럿 자리에 붙이면, 첫 문단은 「캐럿 앞 글 + 클립보드 첫 문단」이고 그 끝 표시는
++// 클립보드에서 왔으므로 클립보드 첫 문단의 모양을, 마지막 문단은 「클립보드 끝 글 + 캐럿 뒤 글」이고
++// 끝 표시가 원래 문단 것이므로 원래 문단의 모양을 갖는다. 종전에는 반대로 남아 표 칸에 문단을
++// 붙여 넣으면 복사해 온 문단 모양(정렬·여백·줄 간격)이 사라졌다.
++fn hwppad_para_mark(p: &Paragraph) -> (u16, u8) {
++    (p.para_shape_id, p.style_id)
++}
++fn hwppad_set_para_mark(p: &mut Paragraph, mark: (u16, u8)) {
++    p.para_shape_id = mark.0;
++    p.style_id = mark.1;
++}
+-- 
+2.43.0
+

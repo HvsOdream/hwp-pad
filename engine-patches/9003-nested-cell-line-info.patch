@@ -1,0 +1,51 @@
+From 61a7aec0f9bbd52caefb83776aa0ff0c5558c099 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=EA=B9=80=EB=AF=BC=EC=B2=A0?= <withsky0@gmail.com>
+Date: Sun, 8 Nov 2026 16:17:47 +0900
+Subject: [PATCH] =?UTF-8?q?[hwp-pad]=20=EC=A4=91=EC=B2=A9=20=ED=91=9C=20?=
+ =?UTF-8?q?=EC=85=80=20=EC=A4=84=20=EC=A0=95=EB=B3=B4=20=EA=B2=BD=EB=A1=9C?=
+ =?UTF-8?q?=20API=20getLineInfoByPath?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Home/End·Shift+End 가 중첩 표 셀(학회 논문 양식 요약 칸: 1×1 표 안 4×4 표)에서 바깥 셀 문단의
+줄 정보를 읽어 한 글자만 선택되거나 다른 줄로 가던 문제. 스튜디오는 cellPath 가 2단 이상이면
+이 API 를 쓴다(hwp-pad patches/nested-cell-line.mjs).
+---
+ src/wasm_api.rs | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/src/wasm_api.rs b/src/wasm_api.rs
+index 0700c00f1d..93a0c4304f 100644
+--- a/src/wasm_api.rs
++++ b/src/wasm_api.rs
+@@ -3651,6 +3651,26 @@ impl HwpDocument {
+         .map_err(|e| e.into())
+     }
+ 
++    /// [hwp-pad] 중첩 표 셀 안 문단의 줄 정보 (경로 기반). 바깥 셀 색인만 쓰는
++    /// `getLineInfoInCell` 은 중첩 셀에서 바깥 셀 문단을 읽어 Home/End 가 엉뚱한 줄로 간다.
++    ///
++    /// path_json: `[{"controlIndex":N,"cellIndex":N,"cellParaIndex":N}, ...]`
++    /// 반환: JSON `{"lineIndex":N,"lineCount":N,"charStart":N,"charEnd":N}`
++    #[wasm_bindgen(js_name = getLineInfoByPath)]
++    pub fn get_line_info_by_path(
++        &self,
++        section_idx: u32,
++        parent_para_idx: u32,
++        path_json: &str,
++        char_offset: u32,
++    ) -> Result<String, JsValue> {
++        let path = parse_cell_path_arg(path_json)?;
++        let para = self
++            .resolve_paragraph_by_path(section_idx as usize, parent_para_idx as usize, &path)
++            .map_err(JsValue::from)?;
++        DocumentCore::compute_line_info(para, char_offset as usize).map_err(|e| e.into())
++    }
++
+     /// 문서에 저장된 캐럿 위치를 반환한다 (문서 로딩 시 캐럿 자동 배치용).
+     ///
+     /// 반환: JSON `{"sectionIndex":N,"paragraphIndex":N,"charOffset":N}`
+-- 
+2.43.0
+

@@ -15,6 +15,8 @@
 | `ios-input.mjs` | `src/engine` | iOS contenteditable 입력 앵커 초기화 |
 | `native-bridge.mjs` | `src/engine` | `window.rhwpStudio.openBytes()` — 바이트로 문서 열기(iOS·MCP) |
 | `page-auto.mjs` | `src/core` | 쪽 배치 기본값 「한 쪽」→「자동」(줄이면 여러 쪽을 옆으로, 한 번만 기존 설정 이전) |
+| `nested-cell-line.mjs` | `src/engine`, `src/core` | 표 안의 표 칸에서 Home/End·Shift+End 가 맞는 줄로 (엔진 9003 `getLineInfoByPath`) |
+| `para-dialog-keys.mjs` | `src/ui` | 문단 모양 대화상자에서 Alt+M/L/R/C/T/N 으로 정렬 방식 |
 | `para-dialog-pattern.mjs` | `src/engine` | 문단 모양 대화상자 무늬 0/-1 동일 취급(테두리 생기던 버그) |
 | `picture-paste-cell.mjs` | `src/engine` | 복사한 그림을 표 칸 안에 붙여넣기 |
 | `save-path.mjs` | `src/engine` | 저장 폴더 기억(File System Access)·iOS 공유 시트 |
