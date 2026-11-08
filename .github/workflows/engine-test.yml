@@ -100,10 +100,11 @@ jobs:
       - name: cargo test --lib (with our patches)
         id: ours
         working-directory: rhwp
+        shell: bash
         run: |
           set -uo pipefail
-          cargo test --lib --no-fail-fast ${{ github.event.inputs.filter }} 2>&1 | tee ../ours.log | grep -E "^test result|FAILED|panicked" | tail -40
-          grep -E "^test .* \.\.\. FAILED$" ../ours.log | sed -E 's/^test (.*) \.\.\. FAILED$/\1/' | sort -u > ../ours-failed.txt
+          cargo test --lib --no-fail-fast ${{ github.event.inputs.filter }} 2>&1 | tee ../ours.log | { grep -E "^test result|FAILED|panicked" || true; } | tail -40
+          grep -E "^test .* \.\.\. FAILED$" ../ours.log | sed -E 's/^test (.*) \.\.\. FAILED$/\1/' | sort -u > ../ours-failed.txt || true
           echo "failed=$(wc -l < ../ours-failed.txt)" >> "$GITHUB_OUTPUT"
           grep -q "^test result" ../ours.log || { echo "테스트가 돌지 못함(컴파일 실패?)"; tail -60 ../ours.log; exit 1; }
 
