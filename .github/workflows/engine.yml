@@ -20,6 +20,10 @@ on:
     paths:
       - 'engine-patches/**'
       - '.github/workflows/engine.yml'
+  # 매주 월요일 02:30 KST — 이음이 vendor 를 올렸으면 새 바탕으로 우리 패치를 다시 붙여 빌드하고
+  # 끝나면 사이트 배포를 부른다(패치가 안 붙으면 여기서 실패 → 사이트는 예전 바탕 그대로 유지).
+  schedule:
+    - cron: '30 17 * * 0'
 
 permissions:
   contents: write
@@ -46,6 +50,10 @@ jobs:
           repository: ${{ env.OPENOFFICE_REPO }}
           ref: ${{ github.event.inputs.openoffice_ref || 'main' }}
           path: openoffice
+
+      - name: openoffice commit
+        id: oo
+        run: echo "sha=$(git -C openoffice rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
@@ -144,7 +152,7 @@ jobs:
           '
           cat out/base.json
         env:
-          OO_SHA: ${{ steps.base.outputs.commit }}
+          OO_SHA: ${{ steps.oo.outputs.sha }}
           BASE_SHA: ${{ steps.base.outputs.vendorWasmSha256 }}
           IEUM_N: ${{ steps.base.outputs.ieumPatches }}
           OURS_N: ${{ steps.ours.outputs.count }}

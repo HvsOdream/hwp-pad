@@ -78,8 +78,18 @@ jobs:
           base=$(node -p 'require("./engine-dl/base.json").vendorWasmSha256')
           ours=$(node -p 'require("./engine-dl/base.json").hwpPadPatches')
           if [ "$want" != "$base" ]; then
-            echo "::warning::engine release 의 바탕($base)이 지금 이음 vendor($want)와 다름 — engine.yml 을 다시 돌려야 함. 이음 vendor 로 빌드"
-            exit 0
+            # 이음이 vendor 를 올렸는데 우리 엔진은 아직 예전 바탕 → 우리 수정이 빠진 채 배포되지 않게
+            # openoffice 를 엔진을 빌드한 그 커밋으로 되돌려 같은 바탕에서 빌드한다(새 이음은 engine.yml
+            # 이 새 바탕으로 다시 빌드한 뒤 배포를 다시 부를 때 들어온다).
+            oo=$(node -p 'require("./engine-dl/base.json").openofficeSha || ""')
+            if [ -n "$oo" ] && git -C openoffice fetch -q --depth 1 origin "$oo" 2>/dev/null && git -C openoffice checkout -q FETCH_HEAD; then
+              want=$(node -p 'require("./openoffice/vendor/rhwp-core/package.json").rhwp.wasmSha256')
+            fi
+            if [ "$want" != "$base" ]; then
+              echo "::error::우리 엔진의 바탕($base)과 맞는 openoffice 를 찾지 못함 — engine.yml 을 먼저 돌려야 함"
+              exit 1
+            fi
+            echo "::warning::이음 vendor 가 새로 나옴 — 우리 엔진 바탕(openoffice $oo)으로 빌드. engine.yml 이 새 바탕으로 다시 빌드하면 자동 재배포"
           fi
           cp engine-dl/{rhwp.js,rhwp.d.ts,rhwp_bg.wasm,rhwp_bg.wasm.d.ts,package.json,LICENSE,THIRD_PARTY_LICENSES.md} openoffice/vendor/rhwp-core/
           echo "engine 덮어씀: hwp-pad 패치 $ours 개, wasm $(sha256sum openoffice/vendor/rhwp-core/rhwp_bg.wasm | cut -c1-12)"
