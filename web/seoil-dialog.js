@@ -3,6 +3,7 @@
 // 한글처럼 Alt+글자·Enter·Esc가 대화상자에 먹지 않았다. 한글과 같게 맞춘다:
 //  - 대화상자가 열리면 첫 입력칸에 초점(글자 전체 선택)
 //  - Alt+글자(라벨의 (E) 같은 밑줄 글자): 그 칸으로 이동 / 단추·체크·라디오는 누름
+//    단추 풍선 도움말에 (Alt+X) 가 적힌 아이콘 단추(문단 모양 정렬 M·L·R·C·T·N)가 먼저
 //  - Enter = 설정(기본 단추), Esc = 취소, Ctrl+Tab·Ctrl+Shift+Tab = 탭 넘기기
 //  - 숫자 칸에서 ↑/↓ = 1씩(Shift는 10씩) 올리고 내리기
 //  - 초점이 문서에 남아 있을 때 누른 키는 문서로 보내지 않고 대화상자로 초점을 옮긴다
@@ -48,6 +49,15 @@
     }
     return null;
   }
+  /** 단추 풍선 도움말의 (Alt+X) — 문단 모양의 정렬 단추처럼 글자 없는 아이콘 단추 */
+  function byTitleKey(dlg, ch) {
+    var re = new RegExp('\\(Alt\\+' + ch + '\\)', 'i'), scopes = [activePanel(dlg), dlg];
+    for (var s = 0; s < scopes.length; s++) {
+      var b = Array.prototype.filter.call(scopes[s].querySelectorAll('button[title]'), function (x) { return visible(x) && re.test(x.title); })[0];
+      if (b) return { el: b, click: true };
+    }
+    return null;
+  }
   function switchTab(dlg, dir) {
     var tabs = Array.prototype.filter.call(dlg.querySelectorAll('.dialog-tab'), visible);
     if (tabs.length < 2) return false;
@@ -82,7 +92,7 @@
     }
     if (e.ctrlKey && e.key === 'Tab') { if (switchTab(dlg, e.shiftKey ? -1 : 1)) { e.preventDefault(); e.stopPropagation(); } return; }
     if (e.altKey && !e.ctrlKey && !e.metaKey && /^Key[A-Z]$|^Digit\d$/.test(e.code || '')) {
-      var ch = e.code.slice(-1), hit = byAccel(dlg, ch);
+      var ch = e.code.slice(-1), hit = byTitleKey(dlg, ch) || byAccel(dlg, ch);
       e.preventDefault(); e.stopPropagation();
       if (hit) { if (hit.click) hit.el.click(); else { hit.el.focus(); if (hit.el.select) hit.el.select(); } }
       return;
