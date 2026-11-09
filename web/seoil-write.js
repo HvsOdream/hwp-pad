@@ -255,6 +255,47 @@
     return n;
   }
 
+  // ---------- 문단 모양 정리(스타일이 없어도) ----------
+  // {tidy:"all"|"B10-B30"|"B12", gap?:"none"|"small"|"normal"|"wide"}
+  // 개조식(- ○ □ ·)과 번호 제목(1) 가) (1) 1. 가.) 문단을 한글 보고서처럼 정리한다:
+  //  · 내어쓰기 — 둘째 줄부터 글머리(앞 공백 + 기호 + 띄움) 다음 글자에 맞춘다. 앞 공백은 그대로 둔다.
+  //  · 문단 아래 간격 — 개조식 문단마다 조금, 번호 제목은 위에 조금 더.
+  //  · 줄 간격·정렬·글자는 건드리지 않는다.
+  var GAP = { none: 0, small: 3, normal: 5, wide: 8 }; // pt
+  var MARK = /^(\s*)([-–□☐❍○◦◯·•▪]\s*|\d{1,2}\.\s+|[가-하]\.\s+|\d+\)\s+|[가-하]\)\s+|\(\d+\)\s+|\([가-하]\)\s+)/;
+  // 글머리 폭: 한글 글꼴(휴먼명조·함초롬 등)의 한컴 조판 기준 — 공백·영숫자·문장부호는 반각(0.5em),
+  // 한글·□○ 같은 기호는 전각(1em). 브라우저 글꼴 측정은 문서 글꼴이 없을 때 틀리므로 쓰지 않는다.
+  function textWidthPx(str, cp) {
+    var pt = Number(cp && (cp.fontSize || cp.size)) || 10; if (pt > 200) pt = pt / 100; // HWPUNIT(1/100pt) 로 오면
+    var em = pt * 96 / 72, ratio = (Number(cp && cp.ratio) || 100) / 100, sp = (Number(cp && cp.spacing) || 0) / 100;
+    var w = 0;
+    for (var i = 0; i < str.length; i++) {
+      var full = /[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7A3\u25A0-\u25FF\u2460-\u24FF\u3000-\u303F]/.test(str[i]);
+      w += em * ((full ? 1 : 0.5) * ratio + sp);
+    }
+    return w;
+  }
+  function tidy(doc, o, op) {
+    var range = op.tidy, a = 0, z = o.length - 1;
+    if (range && range !== 'all') { var m = String(range).split('-'); a = find(o, m[0]); z = find(o, m[1] || m[0]); if (a < 0 || z < 0) throw new Error(range + ' 범위를 찾지 못했습니다'); }
+    var gap = GAP[op.gap] != null ? GAP[op.gap] : GAP.small, n = 0;
+    for (var i = a; i <= z; i++) {
+      var b = o[i]; if (b.ctrl || !b.text.trim() || b.level === 'Ⅰ' || b.level === '표지') continue;
+      var mm = MARK.exec(b.text); if (!mm) continue;
+      var head = /^[\d가-하(]/.test(mm[2]);
+      var cp = null; try { cp = J(doc.getCharPropertiesAt(b.sec, b.para, mm[1].length)); } catch (e) {}
+      var pp = null; try { pp = J(doc.getParaPropertiesAt(b.sec, b.para)); } catch (e) {}
+      var hang = textWidthPx(mm[0], cp);                       // 글머리 전체(앞 공백 포함) 폭
+      var props = { indent: -Math.round(hang * 150) };          // 내어쓰기(raw ×2)
+      if (pp && pp.indent > 0) props.marginLeft = Math.round((pp.marginLeft || 0) * 150); // 들여쓰기였던 문단은 왼쪽 여백 유지
+      var after = head ? Math.min(gap, 2) : gap, before = head ? gap + 2 : 0;
+      props.spacingAfter = Math.round(after * 100);            // pt → HWPUNIT
+      if (head) props.spacingBefore = Math.round(before * 100);
+      doc.applyParaFormat(b.sec, b.para, JSON.stringify(props)); n++;
+    }
+    return n;
+  }
+
   function apply(doc, ops) {
     var lv = levels(doc), log = [], done = [], total = 0;
     (ops || []).forEach(function (op) {
@@ -263,6 +304,7 @@
       else if (op.after) { if (op.chapter) { addChapter(doc, lv, o, op); done.push('새 장 ' + op.chapter); } else { total += writeAfter(doc, lv, o, op); done.push(op.after + ' 뒤'); } }
       else if (op.chapter) { addChapter(doc, lv, o, op); done.push('새 장 ' + op.chapter); }
       else if (op.reformat) { var n = reformat(doc, lv, o, op.reformat); done.push('형식 맞춤 ' + n + '문단'); }
+      else if (op.tidy) { var t = tidy(doc, o, op); done.push('문단 모양 정리 ' + t + '문단'); if (!t) log.push('정리할 개조식·번호 문단이 없습니다'); }
     });
     return { done: done, log: log, paragraphs: total };
   }
@@ -329,7 +371,7 @@
   /** 이 문서가 본문 쓰기를 할 만한가: 단계 스타일이 3개 이상 */
   function supports(doc) { var lv = levels(doc), n = 0; ['1.', '가.', '□', '○', '-'].forEach(function (k) { if (lv[k]) n++; }); return n >= 3; }
 
-  var api = { levels: levels, outline: outline, outlineText: outlineText, apply: apply, emphasize: emphasize, supports: supports, HEADS: HEADS, BODY: BODY };
+  var api = { tidy: tidy, levels: levels, outline: outline, outlineText: outlineText, apply: apply, emphasize: emphasize, supports: supports, HEADS: HEADS, BODY: BODY };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SeoilWrite = api;
 })(typeof window !== 'undefined' ? window : globalThis);
