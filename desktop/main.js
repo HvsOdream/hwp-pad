@@ -82,12 +82,13 @@ function createWindow() {
   win.webContents.on('will-prevent-unload', (e) => {
     const r = dialog.showMessageBoxSync(win, {
       type: 'question',
-      buttons: ['저장', '저장 안 함', '취소'],
+      buttons: ['저장하고 닫기', '닫기', '취소'],
       defaultId: 0,
       cancelId: 2,
       noLink: true,
       title: '서일 오피스',
-      message: '저장하지 않은 변경이 있습니다. 저장할까요?',
+      message: '저장하지 않은 변경이 있습니다.',
+      detail: '「닫기」는 저장하지 않고 닫습니다. 「취소」는 이 창만 닫고 편집으로 돌아갑니다.',
     });
     if (r === 1) { e.preventDefault(); return; }
     if (r !== 0) return;
