@@ -12,6 +12,7 @@
 | `char-shape-caret.mjs` | `src/engine` | 블록 없이 글자 모양(Alt+L) 열고 캐럿 서식으로 적용 |
 | `dirty-state.mjs` | `src/main.ts` | `window.rhwpStudio.isDirty()` — 홈 「저장하고 닫기」가 저장 완료를 알 수 있게 |
 | `context-tidy.mjs` | `src/engine` | 우클릭 「문단 모양 맞추기」(seoil-write tidy 를 블록·커서 문단에, 스냅샷 되돌리기) + `rhwpStudio.ai.selection()` 으로 AI 에 블록 범위 전달 + 「문단 모양 맞추기 양식…」(web/seoil-tidy.js) |
+| `save-hwpx.mjs` | `src/command` | 저장을 항상 HWPX 로(.hwp 로 연 문서는 같은 이름 .hwpx 로 다른 이름 저장) — HWP 저장본이 한글에서 손상 파일로 열리는 문제 회피 |
 | `format-stamp.mjs` | `src/engine` | 모양 복사(Alt+C)를 도장처럼: 기억 유지, 블록 없이 다른 문단에서 Alt+C 로 문단 모양 찍기, Esc 로 끝 |
 | `hancom-web.mjs` | `src/engine` | 한글 2024 단축키 중 브라우저에서 비는 것 보완 |
 | `ios-input.mjs` | `src/engine` | iOS contenteditable 입력 앵커 초기화 |

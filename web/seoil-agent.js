@@ -116,7 +116,9 @@
   }
   function exportBytes(fmt) {
     var d = doc(); if (!d) throw new Error('열린 문서가 없습니다');
-    return fmt === 'hwpx' ? d.exportHwpx() : d.exportHwp();
+    // HWP(5) 저장은 한글에서 「파일이 손상되었습니다」로 안 열리는 경우가 있어 막는다(2026-11-09) → .hwpx 로
+    if (fmt !== 'hwpx') throw new Error('HWP(.hwp) 저장은 막혀 있습니다 — 한글에서 손상 파일로 열릴 수 있습니다. path 를 .hwpx 로 바꿔 저장하세요(원본 .hwp 는 그대로 두고 같은 이름의 .hwpx 로).');
+    return d.exportHwpx();
   }
   function guide() { return (window.SeoilAI && window.SeoilAI.system) || ''; }
 
