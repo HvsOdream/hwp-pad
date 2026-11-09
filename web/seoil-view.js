@@ -116,7 +116,7 @@
     var orig = R.openBytes;
     R.openBytes = function (bytes, name) {
       var r = orig.apply(this, arguments);
-      if (narrow()) { var at = Date.now(); (function w() { if (fileName() && fileName() !== '새 문서.hwp') { enter(); ui.name.textContent = name || fileName(); } else if (Date.now() - at < 15000) setTimeout(w, 150); })(); }
+      if (narrow()) { var at = Date.now(); (function w() { if (fileName() && !/^새 문서\.hwpx?$/.test(fileName())) { enter(); ui.name.textContent = name || fileName(); } else if (Date.now() - at < 15000) setTimeout(w, 150); })(); }
       return r;
     };
     R.openBytes.__seoilView = true;
@@ -124,7 +124,7 @@
     var lastName = fileName();
     setInterval(function () {
       var n = fileName();
-      if (n !== lastName) { lastName = n; if (n && n !== '새 문서.hwp' && narrow() && !on && !document.body.classList.contains('seoil-home-open')) enter(); if (!n || n === '새 문서.hwp') leave(false); }
+      if (n !== lastName) { lastName = n; if (n && !/^새 문서\.hwpx?$/.test(n) && narrow() && !on && !document.body.classList.contains('seoil-home-open')) enter(); if (!n || /^새 문서\.hwpx?$/.test(n)) leave(false); }
       if (on) { tick(); var ae = document.activeElement; if (ae && /TEXTAREA|INPUT/.test(ae.tagName) && !ui.bar.contains(ae) && !ae.closest('.modal-overlay,#seoil-home,#seoil-ai')) hideKb(); }
     }, 800);
   })();

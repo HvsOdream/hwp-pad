@@ -135,6 +135,8 @@
   function fileName() { var b = bridge(); return (b && b.fileName && b.fileName()) || ''; }
   function readBytes(file) { return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(new Uint8Array(r.result)); }; r.onerror = rej; r.readAsArrayBuffer(file); }); }
   function stem(n) { return String(n || '').replace(/\.(hwpx?|hml)$/i, ''); }
+  // HWP(5) 저장은 한글에서 손상 파일로 열릴 수 있어 안에서 쓰는 사본도 모두 HWPX 로(2026-11-09)
+  function asHwpx(n) { return stem(n) + '.hwpx'; }
   function ago(iso) {
     var t = new Date(iso), d = (Date.now() - t.getTime()) / 86400000;
     if (d < 1 && t.getDate() === new Date().getDate()) return '오늘';
@@ -184,12 +186,12 @@
   function snapshot(force) {
     var d = doc(); if (!d || d !== cur.doc) return Promise.resolve();
     var bytes;
-    try { if (!force && d.isEmptyDocument && d.isEmptyDocument()) return Promise.resolve(); bytes = d.exportHwp(); } catch (e) { return Promise.resolve(); }
+    try { if (!force && d.isEmptyDocument && d.isEmptyDocument()) return Promise.resolve(); bytes = d.exportHwpx(); } catch (e) { return Promise.resolve(); }
     if (!bytes || bytes.length > MAX_BYTES) return Promise.resolve();
     var sig = bytes.length + ':' + bytes[bytes.length >> 1] + ':' + bytes[bytes.length - 7];
     if (!force && sig === cur.sig) return Promise.resolve();
     cur.sig = sig;
-    var name = fileName() || cur.name || '새 문서.hwp', pages = 0;
+    var name = asHwpx(fileName() || cur.name || '새 문서'), pages = 0;
     try { pages = d.pageCount(); } catch (e) {}
     var meta = [pages ? pages + '쪽' : '', cur.tag === '양식' ? progressOf(d) : ''].filter(Boolean).join(' · ');
     return update(RECENT, function (l) {
@@ -228,13 +230,13 @@
     close();
     setTimeout(function () { if (window.SeoilAI) { window.SeoilAI.open(true); window.SeoilAI.reset(); } }, 300);
   }
-  /** 지금 문서의 사본을 새 이름(…_YYYYMMDD.hwp)으로 연다. 원본은 내 양식에 남긴다. */
+  /** 지금 문서의 사본을 새 이름(…_YYYYMMDD.hwpx)으로 연다. 원본은 내 양식에 남긴다. */
   async function forkCopy() {
     var d = doc(); if (!d) throw new Error('열린 문서가 없습니다');
-    var orig = fileName() || '문서.hwp', bytes = d.exportHwp();
+    var orig = fileName() || '문서.hwpx', bytes = d.exportHwpx();
     var t = new Date(), ymd = t.getFullYear() + String(t.getMonth() + 1).padStart(2, '0') + String(t.getDate()).padStart(2, '0');
-    var name = stem(orig).replace(/[_\s-]*(20\d{2}[.\-]?\d{2}[.\-]?\d{2}|\d{6,8})$/, '') + '_' + ymd + '.hwp';
-    rememberForm(orig.replace(/\.(hwpx|hml)$/i, '.hwp'), bytes);
+    var name = stem(orig).replace(/[_\s-]*(20\d{2}[.\-]?\d{2}[.\-]?\d{2}|\d{6,8})$/, '') + '_' + ymd + '.hwpx';
+    rememberForm(asHwpx(orig), bytes);
     await openBytes(bytes, name, '양식');
     close();
   }
@@ -252,7 +254,7 @@
     close();
     if (it) { it.classList.remove('disabled'); it.click(); return; }
     var D = doc() && doc().constructor;
-    if (D && D.createEmpty) { try { window.rhwpStudio.openBytes(D.createEmpty().exportHwp(), '새 문서.hwp', null); } catch (e) {} }
+    if (D && D.createEmpty) { try { window.rhwpStudio.openBytes(D.createEmpty().exportHwpx(), '새 문서.hwpx', null); } catch (e) {} }
   }
   /** 문서 닫기: 저장 안 한 변경이 있으면 편집기가 묻고(저장·저장 안 함·취소), 닫히면 홈으로 */
   async function closeDoc() {
@@ -581,7 +583,7 @@
       ui.barGo = el('button', { type: 'button', class: 'go', text: 'AI로 채우기', onclick: function () {
         ui.bar.classList.remove('open');
         if (ui.bar.dataset.mode === 'rewrite' && window.SeoilAI && window.SeoilAI.rewrite) { window.SeoilAI.rewrite(); return; }
-        var d = doc(); if (d) { try { rememberForm(fileName() || '양식.hwp', d.exportHwp()); cur.tag = '양식'; } catch (e) {} }
+        var d = doc(); if (d) { try { rememberForm(asHwpx(fileName() || '양식'), d.exportHwpx()); cur.tag = '양식'; } catch (e) {} }
         if (window.SeoilAI) { window.SeoilAI.open(true); window.SeoilAI.reset(); }
       } }),
       el('button', { type: 'button', class: 'no', text: '닫기', onclick: function () { ui.bar.classList.remove('open'); } })]);
