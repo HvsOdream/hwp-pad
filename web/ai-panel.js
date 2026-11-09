@@ -123,7 +123,7 @@
     '[본문 쓰기 — 메시지에 [본문 구조]가 있을 때: 계획서·보고서]',
     '- [본문 구조]의 B12 같은 번호가 문단입니다. [Ⅰ]은 장 제목 상자, [1.][가.][1)][가)][(1)]은 제목 단계, [□][○][-]는 개조식 단계, [본문]은 일반 문단.',
     '- 쓰기 op: {"under":"B12","items":[{"level":"□","text":"…"},…]} = 제목 B12 아래 본문을 통째로 새로 씀(표·그림은 남음). {"after":"B20","items":[…]} = B20 뒤에 이어 씀. {"chapter":"추진 계획","after":"B40"} = 새 장 상자(번호 자동). {"reformat":"all"} = 손으로 친 □○- 문단을 단계 형식으로 맞춤.',
-    '- 문단 모양 정리 op: {"tidy":"B10-B30","gap":"small"} = 그 범위의 개조식(- ○ □)·번호 제목(1) 가) (1)) 문단에 내어쓰기(둘째 줄을 글머리 다음 글자에 맞춤)와 문단 사이 간격을 준다. gap: none|small(3pt)|normal(5pt)|wide(8pt). 글은 바꾸지 않는다. "문단 모양 잡아 줘·간격 띄워 줘·내어쓰기" 같은 부탁이면 이것을 쓰고, 범위는 사용자가 말한 제목 아래(다음 같은 단계 제목 전까지)로 잡는다.',
+    '- 문단 모양 정리 op: {"tidy":"B10-B30","gap":"small"} = 그 범위의 개조식(- ○ □)·번호 제목(1) 가) (1)) 문단에 내어쓰기(둘째 줄을 글머리 다음 글자에 맞춤)와 문단 사이 간격을 준다. gap: none|small(3pt)|normal(5pt)|wide(8pt). 글은 바꾸지 않는다. "문단 모양 잡아 줘·간격 띄워 줘·내어쓰기" 같은 부탁이면 이것을 쓰고, 범위는 [선택한 문단(블록)]이 있으면 그 범위, 없으면 사용자가 말한 제목 아래(다음 같은 단계 제목 전까지)로 잡는다.',
     '- items의 level은 위 단계 중 하나. 제목 단계(1. 가. 1) …)는 번호까지 text에 쓴다(예: "2. 추진 배경"). □ ○ - 단계는 기호 없이 내용만 쓴다(기호는 양식이 붙임).',
     '- under의 첫 item이 그 제목과 같은 단계면 제목 글을 그 글로 바꾼다(예: under B31(1. 절 제목) + 첫 item {"level":"1.","text":"1. 추진 배경"}). 장 제목 상자도 같음({"level":"Ⅰ","text":"서론"}).',
     '- 장(Ⅰ) 아래를 통째로 쓰는 under는 그 장 전체를 지우므로, 보통은 절(1.) 단위 under를 쓴다.',
@@ -587,8 +587,17 @@
       // 단계 스타일이 없는 문서라도 문단 모양 정리(tidy)는 된다 → 본문 구조를 보여 준다
       try { body = '[본문 구조 — 이 문서는 단계 스타일이 없어 쓰기 op 는 안 되고 {"tidy":…} 만 됩니다]\n' + window.SeoilWrite.outlineText(window.SeoilWrite.outline(d), { full: true }) + '\n\n'; } catch (e) {}
     }
+    // 편집 화면에서 블록을 잡아 두었으면 그 범위(드래그 후 「문단 모양 맞춰줘」)
+    var selLine = '';
+    try {
+      var b = bridge(), r = b && b.selection && b.selection();
+      if (r && r.block && window.SeoilWrite && window.SeoilWrite.rangeIds) {
+        var ids = window.SeoilWrite.rangeIds(d, r.s1, r.p1, r.s2, r.p2);
+        if (ids) selLine = '[선택한 문단(블록)] ' + ids + ' — 「이 부분·선택한·드래그한·여기」나 범위를 말하지 않은 부탁은 이 범위에만\n\n';
+      }
+    } catch (e) {}
     var map = window.SeoilFill.mapText(m, { all: full });
-    return (rw ? '[모드] 다시 쓰기\n' : '') + body + '[칸 지도' + (rw ? ' — 이미 쓴 글 포함' : '') + ']\n' + (map || '(없음)') + '\n\n[문서 이름] ' + fileName() + '\n[내 정보] ' + profileText() + '\n[오늘] ' + new Date().toISOString().slice(0, 10);
+    return (rw ? '[모드] 다시 쓰기\n' : '') + body + selLine + '[칸 지도' + (rw ? ' — 이미 쓴 글 포함' : '') + ']\n' + (map || '(없음)') + '\n\n[문서 이름] ' + fileName() + '\n[내 정보] ' + profileText() + '\n[오늘] ' + new Date().toISOString().slice(0, 10);
   }
 
   function send(text) {

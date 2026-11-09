@@ -278,10 +278,27 @@
   function tidy(doc, o, op) {
     var range = op.tidy, a = 0, z = o.length - 1;
     if (range && range !== 'all') { var m = String(range).split('-'); a = find(o, m[0]); z = find(o, m[1] || m[0]); if (a < 0 || z < 0) throw new Error(range + ' 범위를 찾지 못했습니다'); }
-    var gap = GAP[op.gap] != null ? GAP[op.gap] : GAP.small, n = 0;
-    for (var i = a; i <= z; i++) {
-      var b = o[i]; if (b.ctrl || !b.text.trim() || b.level === 'Ⅰ' || b.level === '표지') continue;
-      var mm = MARK.exec(b.text); if (!mm) continue;
+    return tidyList(doc, o.slice(a, z + 1), op.gap, false);
+  }
+  /** 정리할 문단인가(글머리가 있는 개조식·번호 문단) → 글머리 match 또는 null */
+  function tidyMark(b) { if (b.ctrl || !b.text.trim() || b.level === 'Ⅰ' || b.level === '표지') return null; return MARK.exec(b.text); }
+  /** 본문 문단 범위(구역·문단 번호)를 정리 — 우클릭 「문단 모양 맞추기」. dry 면 셈만 */
+  function tidyRange(doc, s1, p1, s2, p2, gap, dry) {
+    var lo = s1 * 1e6 + p1, hi = s2 * 1e6 + p2;
+    var list = outline(doc).filter(function (b) { var k = b.sec * 1e6 + b.para; return k >= lo && k <= hi; });
+    return tidyList(doc, list, gap, !!dry);
+  }
+  /** 블록이 걸친 본문 문단의 B 번호 범위(AI 에게 알려 줌) → "B12-B19" 또는 '' */
+  function rangeIds(doc, s1, p1, s2, p2) {
+    var lo = s1 * 1e6 + p1, hi = s2 * 1e6 + p2;
+    var ids = outline(doc).filter(function (b) { var k = b.sec * 1e6 + b.para; return k >= lo && k <= hi; }).map(function (b) { return b.id; });
+    return ids.length ? (ids.length > 1 ? ids[0] + '-' + ids[ids.length - 1] : ids[0]) : '';
+  }
+  function tidyList(doc, list, gapName, dry) {
+    var gap = GAP[gapName] != null ? GAP[gapName] : GAP.small, n = 0;
+    for (var i = 0; i < list.length; i++) {
+      var b = list[i], mm = tidyMark(b); if (!mm) continue;
+      if (dry) { n++; continue; }
       var head = /^[\d가-하(]/.test(mm[2]);
       var cp = null; try { cp = J(doc.getCharPropertiesAt(b.sec, b.para, mm[1].length)); } catch (e) {}
       var pp = null; try { pp = J(doc.getParaPropertiesAt(b.sec, b.para)); } catch (e) {}
@@ -371,7 +388,7 @@
   /** 이 문서가 본문 쓰기를 할 만한가: 단계 스타일이 3개 이상 */
   function supports(doc) { var lv = levels(doc), n = 0; ['1.', '가.', '□', '○', '-'].forEach(function (k) { if (lv[k]) n++; }); return n >= 3; }
 
-  var api = { tidy: tidy, levels: levels, outline: outline, outlineText: outlineText, apply: apply, emphasize: emphasize, supports: supports, HEADS: HEADS, BODY: BODY };
+  var api = { tidy: tidy, tidyRange: tidyRange, rangeIds: rangeIds, levels: levels, outline: outline, outlineText: outlineText, apply: apply, emphasize: emphasize, supports: supports, HEADS: HEADS, BODY: BODY };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SeoilWrite = api;
 })(typeof window !== 'undefined' ? window : globalThis);
