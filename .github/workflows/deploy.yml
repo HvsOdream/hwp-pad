@@ -71,8 +71,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if ! gh release download engine --repo "$GITHUB_REPOSITORY" -D engine-dl --clobber 2>/dev/null; then
-            echo "engine release 없음 — 이음 vendor 그대로"; exit 0
+          # 받기가 잠깐 실패해도 우리 엔진 없이 배포되면(배경 그림 클릭 등 고친 것이 사라짐) 안 된다 → 다시 시도, 끝내 안 되면 배포 중단
+          ok=0
+          for i in 1 2 3 4 5; do
+            if gh release download engine --repo "$GITHUB_REPOSITORY" -D engine-dl --clobber; then ok=1; break; fi
+            echo "engine release 받기 실패($i) — 잠시 뒤 다시"; sleep $((i * 10))
+          done
+          if [ "$ok" != 1 ]; then
+            echo "::error::engine release 를 받지 못함 — 우리 엔진 없이 배포하지 않는다"; exit 1
           fi
           want=$(node -p 'require("./openoffice/vendor/rhwp-core/package.json").rhwp.wasmSha256')
           base=$(node -p 'require("./engine-dl/base.json").vendorWasmSha256')
