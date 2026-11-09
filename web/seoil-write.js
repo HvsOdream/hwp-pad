@@ -294,23 +294,53 @@
     var ids = outline(doc).filter(function (b) { var k = b.sec * 1e6 + b.para; return k >= lo && k <= hi; }).map(function (b) { return b.id; });
     return ids.length ? (ids.length > 1 ? ids[0] + '-' + ids[ids.length - 1] : ids[0]) : '';
   }
+  // ---------- 문단 모양 맞추기 양식(우클릭 · AI 공통) ----------
+  // 개조식 아래(bodyAfter) · 번호 제목 위/아래(headBefore/headAfter) pt, 내어쓰기(hang), 줄 간격 %(0 = 그대로)
+  var TIDY_KEY = 'seoil.tidy.v1';
+  var TIDY_BASE = {
+    basic: { name: '보고서 기본', bodyAfter: 3, headBefore: 5, headAfter: 2, hang: true, lineSpacing: 0 },
+    tight: { name: '촘촘하게', bodyAfter: 0, headBefore: 3, headAfter: 0, hang: true, lineSpacing: 0 },
+    wide: { name: '넉넉하게', bodyAfter: 6, headBefore: 10, headAfter: 3, hang: true, lineSpacing: 0 },
+    mine: { name: '내 모양', bodyAfter: 4, headBefore: 6, headAfter: 2, hang: true, lineSpacing: 160 },
+  };
+  var TIDY_ORDER = ['basic', 'tight', 'wide', 'mine'];
+  function tidyLoad() { var v = null; try { v = JSON.parse(root.localStorage.getItem(TIDY_KEY) || 'null'); } catch (e) {} return v && typeof v === 'object' ? v : { cur: 'basic', presets: {} }; }
+  function tidySettings() {
+    var v = tidyLoad(), out = { cur: TIDY_BASE[v.cur] ? v.cur : 'basic', presets: {} };
+    TIDY_ORDER.forEach(function (k) { var o = {}, b = TIDY_BASE[k], u = (v.presets || {})[k] || {}; for (var x in b) o[x] = u[x] != null ? u[x] : b[x]; out.presets[k] = o; });
+    return out;
+  }
+  function tidySave(cfg) { try { root.localStorage.setItem(TIDY_KEY, JSON.stringify({ cur: cfg.cur, presets: cfg.presets })); } catch (e) {} }
+  function tidyReset(key) { var c = tidySettings(); if (TIDY_BASE[key]) { c.presets[key] = JSON.parse(JSON.stringify(TIDY_BASE[key])); tidySave(c); } return c; }
+  function tidyOpts(gapName) {
+    if (gapName && GAP[gapName] != null) { var g = GAP[gapName]; return { bodyAfter: g, headBefore: g + 2, headAfter: Math.min(g, 2), hang: true, lineSpacing: 0 }; }
+    var c = tidySettings(); return c.presets[gapName && TIDY_BASE[gapName] ? gapName : c.cur];
+  }
   function tidyList(doc, list, gapName, dry) {
-    var gap = GAP[gapName] != null ? GAP[gapName] : GAP.small, n = 0;
+    var opt = typeof gapName === 'object' && gapName ? gapName : tidyOpts(gapName), n = 0;
     for (var i = 0; i < list.length; i++) {
       var b = list[i], mm = tidyMark(b); if (!mm) continue;
       if (dry) { n++; continue; }
       var head = /^[\d가-하(]/.test(mm[2]);
       var cp = null; try { cp = J(doc.getCharPropertiesAt(b.sec, b.para, mm[1].length)); } catch (e) {}
       var pp = null; try { pp = J(doc.getParaPropertiesAt(b.sec, b.para)); } catch (e) {}
-      var hang = textWidthPx(mm[0], cp);                       // 글머리 전체(앞 공백 포함) 폭
-      var props = { indent: -Math.round(hang * 150) };          // 내어쓰기(raw ×2)
-      if (pp && pp.indent > 0) props.marginLeft = Math.round((pp.marginLeft || 0) * 150); // 들여쓰기였던 문단은 왼쪽 여백 유지
-      var after = head ? Math.min(gap, 2) : gap, before = head ? gap + 2 : 0;
-      props.spacingAfter = Math.round(after * 100);            // pt → HWPUNIT
-      if (head) props.spacingBefore = Math.round(before * 100);
+      var props = {};
+      if (opt.hang !== false) {
+        var hang = textWidthPx(mm[0], cp);                     // 글머리 전체(앞 공백 포함) 폭
+        props.indent = -Math.round(hang * 150);                 // 내어쓰기(raw ×2)
+        if (pp && pp.indent > 0) props.marginLeft = Math.round((pp.marginLeft || 0) * 150); // 들여쓰기였던 문단은 왼쪽 여백 유지
+      }
+      props.spacingAfter = Math.round((head ? opt.headAfter : opt.bodyAfter) * 100); // pt → HWPUNIT
+      if (head) props.spacingBefore = Math.round(opt.headBefore * 100);
+      if (Number(opt.lineSpacing) > 0) { props.lineSpacing = Number(opt.lineSpacing); props.lineSpacingType = 'Percent'; }
       doc.applyParaFormat(b.sec, b.para, JSON.stringify(props)); n++;
     }
     return n;
+  }
+  /** 커서 문단의 간격·줄 간격을 양식 값으로 읽기(「이 문단에서 가져오기」) */
+  function tidyFromPara(doc, sec, para) {
+    var pp = J(doc.getParaPropertiesAt(sec, para)), pt = function (px) { return Math.round((Number(px) || 0) * 72 / 96 * 10) / 10; };
+    return { after: pt(pp.spacingAfter), before: pt(pp.spacingBefore), lineSpacing: pp.lineSpacingType === 'Percent' ? Number(pp.lineSpacing) || 0 : 0, hang: (Number(pp.indent) || 0) < 0 };
   }
 
   function apply(doc, ops) {
@@ -388,7 +418,7 @@
   /** 이 문서가 본문 쓰기를 할 만한가: 단계 스타일이 3개 이상 */
   function supports(doc) { var lv = levels(doc), n = 0; ['1.', '가.', '□', '○', '-'].forEach(function (k) { if (lv[k]) n++; }); return n >= 3; }
 
-  var api = { tidy: tidy, tidyRange: tidyRange, rangeIds: rangeIds, levels: levels, outline: outline, outlineText: outlineText, apply: apply, emphasize: emphasize, supports: supports, HEADS: HEADS, BODY: BODY };
+  var api = { tidy: tidy, tidyRange: tidyRange, rangeIds: rangeIds, tidySettings: tidySettings, tidySave: tidySave, tidyReset: tidyReset, tidyFromPara: tidyFromPara, TIDY_ORDER: TIDY_ORDER, levels: levels, outline: outline, outlineText: outlineText, apply: apply, emphasize: emphasize, supports: supports, HEADS: HEADS, BODY: BODY };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SeoilWrite = api;
 })(typeof window !== 'undefined' ? window : globalThis);

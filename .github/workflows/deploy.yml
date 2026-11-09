@@ -566,7 +566,7 @@ jobs:
           EOF
 
           # --- AI 작성 도우미 (web/: 양식 칸 쓰기 + 패널) ---
-          cp web/seoil-view.js web/seoil-form.js web/seoil-fill.js web/seoil-write.js web/seoil-dialog.js web/ai-panel.js web/seoil-start.js web/seoil-agent.js site/
+          cp web/seoil-view.js web/seoil-form.js web/seoil-fill.js web/seoil-write.js web/seoil-tidy.js web/seoil-dialog.js web/ai-panel.js web/seoil-start.js web/seoil-agent.js site/
           # 앱에 넣어 둘 학교 원본 양식(있으면): web/forms/업무협조전.hwp → 시작 화면이 기본 양식으로 쓴다
           if [ -d web/forms ]; then mkdir -p site/forms && cp -r web/forms/. site/forms/; fi
 
@@ -591,6 +591,7 @@ jobs:
             '<script src="seoil-form.js" defer></script>',
             '<script src="seoil-fill.js" defer></script>',
             '<script src="seoil-write.js" defer></script>',
+            '<script src="seoil-tidy.js" defer></script>',
             '<script src="seoil-dialog.js" defer></script>',
             '<script src="ai-panel.js" defer></script>',
             '<script src="seoil-start.js" defer></script>',
