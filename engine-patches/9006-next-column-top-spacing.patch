@@ -1,0 +1,75 @@
+From 5b97405aacdf6ad19cecaa49cfe32753d0f00a1a Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=EA=B9=80=EB=AF=BC=EC=B2=A0?= <withsky0@gmail.com>
+Date: Mon, 9 Nov 2026 16:27:30 +0900
+Subject: [PATCH] =?UTF-8?q?[hwp-pad]=20=EB=8B=A4=EB=8B=A8=20=EB=92=A4=20?=
+ =?UTF-8?q?=EB=8B=A8=20=EC=B2=AB=20=EB=AC=B8=EB=8B=A8:=20=EC=A0=84?=
+ =?UTF-8?q?=ED=8F=AD=20=ED=91=9C=20=EC=98=88=EC=95=BD=20=EB=B0=94=EB=8B=A5?=
+ =?UTF-8?q?=EC=97=90=EC=84=9C=20=EB=AC=B8=EB=8B=A8=20=EC=95=9E=20=EA=B0=84?=
+ =?UTF-8?q?=EA=B2=A9=20=ED=9D=A1=EC=88=98?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+재현: 한국게임학회 추계 논문(실제 원고) 1쪽 — 왼단 「1. 서 론」(9001 로 표 바닥에 앉음)과
+오른단 「2. 연구 배경」이 한글에선 같은 높이인데, 오른단은 body-wide 예약 바닥에 문단 앞 간격
+20px 을 더해 그만큼 내려가 있었다. 저장 첫 줄 vpos(29157) == 예약 바닥이면 앞 간격을 흡수한다.
+---
+ src/renderer/typeset/section/flow.rs | 35 ++++++++++++++++++++++++++++
+ 1 file changed, 35 insertions(+)
+
+diff --git a/src/renderer/typeset/section/flow.rs b/src/renderer/typeset/section/flow.rs
+index 17badd7225..b80463ea4d 100644
+--- a/src/renderer/typeset/section/flow.rs
++++ b/src/renderer/typeset/section/flow.rs
+@@ -346,6 +346,31 @@ impl TypesetEngine {
+                     st.advance_column_or_new_page_with_storage(storage)?;
+                 }
+             }
++            // [hwp-pad] 다단 쪽에서 첫 단 위 전폭 표가 뒤 단도 밀어 내린 경우(body-wide 예약), 뒤 단
++            // 첫 문단의 저장 첫 줄이 예약 바닥(표 바닥)과 같으면 한글은 문단 앞 간격을 표 아래 틈에
++            // 흡수한다(학회 논문: 왼단 「1. 서 론」과 오른단 「2. 연구 배경」이 같은 높이).
++            let hwp_pad_next_col_top = (st.col_count > 1
++                && st.current_column > 0
++                && st.current_items.is_empty()
++                && st.pending_body_wide_top_reserve > 0.0
++                && (st.current_height - st.pending_body_wide_top_reserve).abs() < 0.5
++                && formatted.spacing_before > 0.0
++                && (st.profile.hwpx_stored_layout() || st.profile.hwp5_stored_pagination_layout())
++                && !para.stored_text_partition_is_dirty()
++                && para.line_segs.first().is_some_and(|line| {
++                    (crate::renderer::hwpunit_to_px(line.vertical_pos, self.dpi)
++                        - st.pending_body_wide_top_reserve)
++                        .abs()
++                        <= 1.0
++                }))
++            .then(|| {
++                (
++                    st.pending_body_wide_top_reserve,
++                    formatted.spacing_before,
++                    st.pages.len(),
++                    st.current_column,
++                )
++            });
+             if !self.typeset_inline_flow_with_storage(
+                 st,
+                 para_idx,
+@@ -365,6 +390,16 @@ impl TypesetEngine {
+                     storage,
+                 )?;
+             }
++            if let Some((reserve, before, pages, column)) = hwp_pad_next_col_top {
++                if st.pages.len() == pages
++                    && st.current_column == column
++                    && matches!(st.current_items.first(), Some(PageItem::FullParagraph { para_index })
++                        if *para_index == para_idx)
++                {
++                    st.align_flow_to((st.current_height - before).max(reserve));
++                    st.record_float_pushed_line_origin(para_idx, reserve - before, before);
++                }
++            }
+             if let Some(origin) = opening_float_line.filter(|_| {
+                 opening_page == (st.pages.len(), st.current_column)
+                     && matches!(st.current_items.first(), Some(PageItem::FullParagraph { para_index })
+-- 
+2.43.0
+
