@@ -488,6 +488,17 @@
       } else parts.push('웹(브라우저)');
     } catch (e) {}
     if (ui.ver) ui.ver.textContent = parts.join(' · ');
+    // 문서 엔진(wasm) 준비가 실패했으면 홈에 바로 알린다(이대로 파일을 열면 malloc 오류만 난다)
+    try {
+      var S = window.rhwpStudio, err = S && S.engineError ? await S.engineError() : null;
+      if (err && ui.ver && !ui.engineErr) {
+        ui.engineErr = el('div', { style: 'margin:8px 0;padding:8px 12px;border-radius:10px;background:#FDECEC;color:#B42318;font-size:13px' }, [
+          '문서 엔진을 불러오지 못했습니다 — ' + err + ' ',
+          el('button', { type: 'button', style: 'font:inherit;margin-left:6px;padding:2px 10px;border:1px solid #B42318;border-radius:8px;background:#fff;color:#B42318;cursor:pointer', text: '다시 불러오기', onclick: function () { location.reload(); } }),
+        ]);
+        ui.ver.parentNode && ui.ver.parentNode.insertBefore(ui.engineErr, ui.ver);
+      }
+    } catch (e) {}
     // 앱(iOS)에서 파일 열기 진단 로그가 있으면 「앱 로그」 버튼
     var N = window.__seoilNative;
     if (N && N.log && N.log().length && ui.ver) {

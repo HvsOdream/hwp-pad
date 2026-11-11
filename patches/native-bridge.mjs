@@ -16,10 +16,25 @@ src = src.replace(find, () => find + `
 // 엔진(wasm) 초기화(initPromise)를 기다린 뒤 연다 — 앱이 파일과 함께 켜질 때 너무 일찍 부르면
 // "undefined is not an object (evaluating 'f.__wbindgen_malloc')"로 로드 실패하던 문제(2026-11-06).
 ;(window as any).rhwpStudio.openBytes = async (bytes: Uint8Array, fileName: string, fileHandle: unknown = null) => {
-  try { await initPromise; } catch { /* 초기화 실패여도 기존처럼 시도 */ }
+  try { await initPromise; } catch { /* initialize() 는 실패를 삼키고 resolve 한다 */ }
+  // [2026-11-11] 엔진 초기화가 실패한 채로 열면 같은 malloc 오류만 난다(아이패드, Claude 앱에서 받은 파일).
+  // 한 번은 화면을 새로 불러 다시 시도하고(앱이 파일과 함께 켜졌으면 getLaunchUrl 로 같은 파일이 다시 열린다),
+  // 그래도 안 되면 진짜 이유(WASM 초기화 실패: …)를 알린다.
+  if (!rendererInitialized) {
+    const why = (document.getElementById('sb-message')?.textContent || '').trim() || '이유를 알 수 없음';
+    let retried = false;
+    try { retried = sessionStorage.getItem('hwppad-init-retry') === '1'; sessionStorage.setItem('hwppad-init-retry', '1'); } catch { /* storage blocked */ }
+    console.error('[hwp-pad] 엔진 준비 실패: ' + why);
+    if (!retried) { location.reload(); return; }
+    throw new Error('문서 엔진을 준비하지 못했습니다 (' + why + '). 앱을 완전히 닫았다가 다시 열어 주세요.');
+  }
+  try { sessionStorage.removeItem('hwppad-init-retry'); } catch { /* storage blocked */ }
   eventBus.emit('open-document-bytes', { bytes, fileName: fileName || 'document.hwp', fileHandle });
 };
-;(window as any).rhwpStudio.ready = () => initPromise.then(() => true);`)
+;(window as any).rhwpStudio.ready = () => initPromise.then(() => rendererInitialized);
+// [hwp-pad] 홈 화면에서 엔진 준비 실패를 알리려고: 실패면 이유 문자열, 정상이면 null
+;(window as any).rhwpStudio.engineError = () => initPromise.then(() => rendererInitialized ? null : ((document.getElementById('sb-message')?.textContent || '').trim() || '문서 엔진 초기화 실패'));`)
 writeFileSync(main, src)
 if (!/const initPromise = initialize\(\)/.test(src)) throw new Error('main.ts: initPromise not found')
+if (!/let rendererInitialized = false;/.test(src)) throw new Error('main.ts: rendererInitialized not found')
 console.log('[hwp-pad] native-bridge: ok')
