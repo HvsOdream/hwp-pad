@@ -672,10 +672,15 @@
     var before = scan(), snap = null;
     try { snap = d.saveSnapshot(); } catch (e) {}
     try {
+      // 그림 op({image, cell|after})는 따로: 글을 쓰면 칸·문단 번호가 바뀌므로 다른 op와 섞어 보내지 않는다
+      var iops = (ops || []).filter(function (o) { return o.image; });
+      if (iops.length && iops.length !== (ops || []).length) throw new Error('그림 op는 다른 op와 섞지 말고 따로 보내세요(글을 먼저 쓰고 read_document로 번호를 다시 확인한 뒤 그림)');
+      if (iops.length) ops = [];
       var eops = (ops || []).filter(function (o) { return o.emph; });
       var wops = (ops || []).filter(function (o) { return !o.emph && (o.under || o.after || o.chapter || o.reformat || o.tidy); });
       var fops = (ops || []).filter(function (o) { return !o.emph && !(o.under || o.after || o.chapter || o.reformat || o.tidy); });
       var r = fops.length ? window.SeoilFill.apply(d, before, fops) : { done: [], log: [] };
+      if (iops.length) r = window.SeoilFill.images(d, before, iops);
       if (wops.length) {
         var w = window.SeoilWrite.apply(d, wops);
         r.done = r.done.concat(w.done); r.log = r.log.concat(w.log);

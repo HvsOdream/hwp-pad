@@ -8,6 +8,9 @@
 //    {para:"P12", find:"00월 00일", replace:"11월 03일"} 본문 문단 글자만 바꿈
 //    {rows:"T6", start:1, data:[["…","…"],…]}  명단 표: start 행부터 칸을 왼→오로 채움, 모자라면 행 추가(최상위 표만)
 //  verify(before, after) → 표 수·칸 수가 같은지(행 추가는 허용)
+//  images(doc, m, ops) → 그림 넣기(2026-11-11). 그림 바이트는 설치판이 파일을 읽어 넣어 준다(image.bytes)
+//    {image:{bytes,ext,name,w,h}, cell:"T3.r2c0", width:80}   칸 안에 글자처럼(칸 폭·높이에 맞춰 줄임). width 는 mm(선택)
+//    {image:{…}, after:"P5"|"B20"|"end", width:120, align:"center"}  그 문단 뒤 새 문단에 글자처럼(본문 폭에 맞춰 줄임)
 // 브라우저(window.SeoilFill)와 node 공용.
 (function (root) {
   'use strict';
@@ -255,6 +258,81 @@
     return { done: done, log: log };
   }
 
+  // ---------- 그림 ----------
+  var HU_PX = 75, HU_MM = 7200 / 25.4; // 1px(96dpi)=75HU, 1mm≈283.46HU
+  function bodySize(doc, sec) {
+    try {
+      var pd = J(doc.getPageDef(sec));
+      return { w: pd.width - pd.marginLeft - pd.marginRight - (pd.marginGutter || 0), h: pd.height - pd.marginTop - pd.marginBottom - (pd.marginHeader || 0) - (pd.marginFooter || 0) };
+    } catch (e) { return { w: 42520, h: 65000 }; }
+  }
+  /** 칸 안쪽 크기(HU). 높이는 일부러 키워 둔 칸(사진 칸)일 때만 쓴다 */
+  function cellInner(doc, c) {
+    var pr = null;
+    try { pr = c.path.length === 1 ? J(doc.getCellProperties(c.t.sec, c.t.para, c.path[0].controlIndex, c.idx)) : J(doc.getCellPropertiesByPath(c.t.sec, c.t.para, P(c.path), c.idx)); } catch (e) {}
+    if (!pr || !(pr.width > 0)) return null;
+    return { w: Math.max(567, pr.width - (pr.paddingLeft || 0) - (pr.paddingRight || 0)), h: pr.height - (pr.paddingTop || 0) - (pr.paddingBottom || 0) };
+  }
+  function fitSize(img, maxW, maxH, mm) {
+    var w = mm > 0 ? mm * HU_MM : img.w * HU_PX, h = w * img.h / img.w;
+    var k = Math.min(1, maxW > 0 ? maxW / w : 1, maxH > 0 ? maxH / h : 1);
+    return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+  }
+  function checkImage(op) {
+    var im = op.image;
+    if (!im || !im.bytes || !im.bytes.length) throw new Error('그림 바이트가 없습니다(설치판의 Claude 연결로만 넣을 수 있습니다)');
+    if (!(im.w > 0 && im.h > 0)) throw new Error((im.name || '그림') + ': 크기를 읽지 못했습니다');
+    return im;
+  }
+  function descOf(im) { return '그림입니다.\r\n원본 그림의 이름: ' + (im.name || '') + '\r\n원본 그림의 크기: 가로 ' + im.w + 'pixel, 세로 ' + im.h + 'pixel'; }
+  function images(doc, m, ops) {
+    var done = [], log = [], body = [];
+    (ops || []).forEach(function (op) {
+      var im = checkImage(op);
+      if (op.cell) {
+        var c = findCell(m, op.cell);
+        if (!c) throw new Error(op.cell + ' 칸이 없습니다');
+        var inner = cellInner(doc, c), bs = bodySize(doc, c.t.sec);
+        var maxW = inner ? inner.w : Math.round(bs.w / 2);
+        var maxH = inner && inner.h > 20 * HU_MM ? inner.h : bs.h; // 20mm 넘게 키워 둔 칸이면 그 높이 안에
+        var sz = fitSize(im, maxW, maxH, Number(op.width) || 0);
+        // 안내문·자리표시("사진 첨부" 등)가 있으면 지우고 넣는다
+        if (c.text.trim() && (c.kind === 'guide' || c.kind === 'ph' || op.clear)) writeCell(doc, c, '');
+        var cp = P(withPara(c.path, 0));
+        var r = J(doc.insertPictureInCell(c.t.sec, c.t.para, 0, cp, im.bytes, sz.w, sz.h, im.w, im.h, im.ext, descOf(im), undefined, undefined));
+        if (!r.ok) throw new Error(op.cell + ': 그림을 넣지 못했습니다' + (r.error ? ' — ' + r.error : ''));
+        J(doc.setCellPicturePropertiesByPath(c.t.sec, c.t.para, cp, r.controlIdx, JSON.stringify({ treatAsChar: true })));
+        done.push(op.cell + ' 그림');
+        return;
+      }
+      if (!op.after) throw new Error('그림 op에는 cell(칸) 또는 after(문단)가 있어야 합니다');
+      var at = null;
+      if (op.after === 'end') { var ls = doc.getSectionCount() - 1; at = { sec: ls, para: doc.getParagraphCount(ls) - 1 }; }
+      else if (/^P\d+$/.test(op.after)) { var pp = m.paras.filter(function (x) { return x.id === op.after; })[0]; if (pp) at = { sec: pp.sec, para: pp.para }; }
+      else if (/^B\d+$/.test(op.after) && root.SeoilWrite) { var bb = root.SeoilWrite.outline(doc).filter(function (x) { return x.id === op.after; })[0]; if (bb) at = { sec: bb.sec, para: bb.para }; }
+      if (!at) throw new Error(op.after + ' 문단이 없습니다');
+      body.push({ op: op, im: im, at: at });
+    });
+    // 본문은 뒤쪽부터 — 앞에서 넣으면 뒤 문단 번호가 밀린다. 같은 문단 뒤에 여럿이면 보낸 순서가 유지되게 거꾸로.
+    body.map(function (b, i) { b.i = i; return b; })
+      .sort(function (a, b) { return a.at.sec !== b.at.sec ? b.at.sec - a.at.sec : (a.at.para !== b.at.para ? b.at.para - a.at.para : b.i - a.i); })
+      .forEach(function (b) {
+        var sec = b.at.sec, np = b.at.para + 1, bs = bodySize(doc, sec);
+        J(doc.insertParagraph(sec, np));
+        var nl = doc.getParagraphLength(sec, np); if (nl) doc.deleteText(sec, np, 0, nl);
+        var sz = fitSize(b.im, bs.w, Math.round(bs.h * 0.9), Number(b.op.width) || 0);
+        var r = J(doc.insertPicture(sec, np, 0, '', b.im.bytes, sz.w, sz.h, b.im.w, b.im.h, b.im.ext, descOf(b.im), undefined, undefined));
+        if (!r.ok) throw new Error(b.op.after + ' 뒤: 그림을 넣지 못했습니다' + (r.error ? ' — ' + r.error : ''));
+        var pi = r.paraIdx != null ? r.paraIdx : np;
+        J(doc.setPictureProperties(sec, pi, r.controlIdx, JSON.stringify({ treatAsChar: true })));
+        // 그림 문단은 앞 문단의 내어쓰기·들여쓰기를 물려받지 않게 하고 가운데로(align 으로 바꿀 수 있음)
+        var al = /^(left|right|center|justify)$/.test(b.op.align || '') ? b.op.align : 'center';
+        try { doc.applyParaFormat(sec, pi, JSON.stringify({ alignment: al, indent: 0, marginLeft: 0 })); } catch (e) { log.push('그림 문단 정렬은 못 맞춤'); }
+        done.push(b.op.after + ' 뒤 그림');
+      });
+    return { done: done, log: log };
+  }
+
   /** 원본과 구조가 같은가: 표 수·표마다 칸 수(행 추가로 늘어난 것은 허용) */
   function verify(before, after) {
     var a = before.fpParts, b = after.fpParts, bad = [];
@@ -291,7 +369,7 @@
     return all >= 4 && ph === 0 && empty / all < 0.3;
   }
 
-  var api = { looksFilled: looksFilled, scan: scan, mapText: mapText, apply: apply, verify: verify, pickTableForRows: pickTableForRows, PH: PH };
+  var api = { looksFilled: looksFilled, scan: scan, mapText: mapText, apply: apply, images: images, verify: verify, pickTableForRows: pickTableForRows, PH: PH };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SeoilFill = api;
 })(typeof window !== 'undefined' ? window : globalThis);

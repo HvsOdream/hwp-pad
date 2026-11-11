@@ -230,6 +230,26 @@ async function saveDoc(target) {
   return `저장했습니다: ${p} (이제 이 파일이 열려 있고, Ctrl+S도 이 파일에 저장됩니다)`;
 }
 
+// 그림 op: {"image":"C:\\…\\사진.jpg", …} 의 경로를 여기서 읽어 편집기에 바이트(base64)로 넘긴다.
+// 웹 편집기는 PC 파일을 직접 읽지 못한다. 그림 파일(png·jpg·gif·bmp·webp, 10MB 이하)만 읽는다.
+const IMG_EXT = /\.(png|jpe?g|gif|bmp|webp)$/i;
+async function loadImages(ops) {
+  if (!Array.isArray(ops)) return ops;
+  const out = [];
+  for (const op of ops) {
+    if (!op || typeof op !== 'object' || op.image == null) { out.push(op); continue; }
+    const p = op.image;
+    if (typeof p !== 'string' || !path.isAbsolute(p)) throw new Error('image는 그림 파일의 절대 경로여야 합니다');
+    if (!IMG_EXT.test(p)) throw new Error('그림 파일(png·jpg·gif·bmp·webp)만 넣을 수 있습니다: ' + p);
+    let st; try { st = await fs.promises.stat(p); } catch (e) { throw new Error('그림 파일이 없습니다: ' + p); }
+    if (!st.isFile()) throw new Error('그림 파일이 아닙니다: ' + p);
+    if (st.size > 10 * 1024 * 1024) throw new Error('그림이 너무 큽니다(10MB 이하): ' + p);
+    const buf = await fs.promises.readFile(p);
+    out.push(Object.assign({}, op, { image: { b64: buf.toString('base64'), ext: path.extname(p).slice(1).toLowerCase(), name: path.basename(p) } }));
+  }
+  return out;
+}
+
 async function runTool(name, a) {
   switch (name) {
     case 'ping': return 'ok';
@@ -249,7 +269,8 @@ async function runTool(name, a) {
     case 'rewrite_copy': await inPage('window.SeoilAgent.rewriteCopy()'); currentPath = null; return await inPage('window.SeoilAgent.read()');
     case 'read_document': return await inPage('window.SeoilAgent.read()');
     case 'edit_document': {
-      const r = await inPage(`window.SeoilAgent.edit(${J(a.ops || [])}, ${J({ note: a.note || '', force: !!a.force })})`);
+      const ops = await loadImages(a.ops || []);
+      const r = await inPage(`(window.SeoilAgent.editAsync || window.SeoilAgent.edit)(${J(ops)}, ${J({ note: a.note || '', force: !!a.force })})`);
       return { text: r.result, isError: !r.ok };
     }
     case 'undo_last': return await inPage('window.SeoilAgent.undo()');

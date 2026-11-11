@@ -78,6 +78,32 @@
     return { ok: !/^실패/.test(res), result: res + (skipped.length ? ' / 사람이 고친 칸이라 건너뜀: ' + skipped.join(', ') : '') };
   }
 
+  /** 그림 op 준비: 설치판이 읽어 준 그림({b64,ext,name})을 바이트로 풀고 가로·세로 픽셀을 잰다 */
+  var MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp' };
+  function prepareImage(im) {
+    if (typeof im === 'string') return Promise.reject(new Error('그림을 넣으려면 서일 오피스 설치판 0.4.24 이상이 필요합니다(설치판을 새로 설치해 주세요)'));
+    if (!im || !im.b64) return Promise.reject(new Error('그림 파일을 읽지 못했습니다'));
+    var bin = atob(im.b64), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    var ext = String(im.ext || 'png').toLowerCase();
+    var url = URL.createObjectURL(new Blob([bytes], { type: MIME[ext] || 'image/png' }));
+    return new Promise(function (res, rej) {
+      var img = new Image();
+      img.onload = function () { URL.revokeObjectURL(url); if (img.naturalWidth > 0 && img.naturalHeight > 0) res({ bytes: bytes, ext: ext === 'jpeg' ? 'jpg' : ext, name: im.name || '', w: img.naturalWidth, h: img.naturalHeight }); else rej(new Error((im.name || '그림') + ': 크기를 읽지 못했습니다')); };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error((im.name || '그림') + ': 그림 파일로 읽을 수 없습니다')); };
+      img.src = url;
+    });
+  }
+  /** edit + 그림: 그림 op가 있으면 먼저 준비한 뒤 edit 한다(설치판은 이것을 부른다) */
+  async function editAsync(ops, opt) {
+    if (Array.isArray(ops) && ops.some(function (o) { return o && o.image; })) {
+      try {
+        ops = await Promise.all(ops.map(async function (o) { return o && o.image ? Object.assign({}, o, { image: await prepareImage(o.image) }) : o; }));
+      } catch (e) { return { ok: false, result: '실패: ' + (e && e.message || e) }; }
+    }
+    return edit(ops, opt);
+  }
+
   function undo() {
     var d = doc(), u = undoStack.pop();
     if (!d || !u) return '되돌릴 것이 없습니다.';
@@ -120,7 +146,18 @@
     if (fmt !== 'hwpx') throw new Error('HWP(.hwp) 저장은 막혀 있습니다 — 한글에서 손상 파일로 열릴 수 있습니다. path 를 .hwpx 로 바꿔 저장하세요(원본 .hwp 는 그대로 두고 같은 이름의 .hwpx 로).');
     return d.exportHwpx();
   }
-  function guide() { return (window.SeoilAI && window.SeoilAI.system) || ''; }
+  // 그림은 설치판의 Claude 연결로만(파일 경로를 설치판이 읽어 준다) — 패널 AI 안내문(SYSTEM)에는 넣지 않는다
+  var IMAGE_GUIDE = [
+    '',
+    '[그림 넣기 — 사람이 그림·사진을 넣어 달라고 할 때]',
+    '- 칸에: {"image":"C:\\\\Users\\\\…\\\\사진.jpg","cell":"T3.r2c0"} = 그 칸에 그림을 글자처럼 넣는다. 칸 폭(높이를 키워 둔 사진 칸이면 높이도)에 맞춰 줄인다. 칸의 안내문·자리표시는 지워진다(이미 쓴 글 위에 넣을 때 글을 지우려면 "clear":true).',
+    '- 본문에: {"image":"C:\\\\…\\\\그림.png","after":"B20"} = 그 문단(B·P id, 맨 끝은 "end") 바로 뒤에 새 문단을 만들어 가운데로 넣는다. 본문 폭보다 크면 줄인다.',
+    '- 선택: "width":80 = 가로 mm(비우면 원래 크기, 넘치면 맞춤). 본문 그림은 "align":"left|center|right".',
+    '- image는 이 PC에 있는 그림 파일의 절대 경로(png·jpg·gif·bmp·webp). 경로를 모르면 사람에게 묻는다. 그림을 만들어 내거나 웹 주소를 넣지 않는다.',
+    '- 그림 op는 다른 op와 섞지 않는다. 글을 먼저 쓰고 → read_document로 번호를 다시 확인 → 그림 op만 따로 보낸다. 한 번에 그림 여러 장은 된다.',
+    '- 서명·도장 칸에는 넣지 않는다(사람이 따로 말할 때만).',
+  ].join('\n');
+  function guide() { var g = (window.SeoilAI && window.SeoilAI.system) || ''; return g ? g + '\n' + IMAGE_GUIDE : ''; }
 
-  window.SeoilAgent = { status: status, read: read, edit: edit, undo: undo, newDocument: newDocument, rewriteCopy: rewriteCopy, waitOpened: waitOpened, exportBytes: exportBytes, guide: guide, remember: remember };
+  window.SeoilAgent = { status: status, read: read, edit: edit, editAsync: editAsync, undo: undo, newDocument: newDocument, rewriteCopy: rewriteCopy, waitOpened: waitOpened, exportBytes: exportBytes, guide: guide, remember: remember };
 })();

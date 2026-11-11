@@ -18,6 +18,7 @@ const OPS_HELP = [
   '표에 줄 더하기: {"rows":"T3","start":1,"data":[["1","홍길동","교수"],…]}',
   '본문 쓰기(보고서·계획서): {"under":"B12","items":[{"level":"□","text":"…"},{"level":"○","text":"…"}]} / {"after":"B12","items":[…]} / 새 장: {"chapter":"제목","after":"B30"} / {"reformat":"all"}',
   '강조: {"emph":"B12"|"P5"|"T2.r0c1"|"all","find":"핵심 문구","style":"bold|underline|red|blue|shade|italic"}',
+  '그림(다른 op와 섞지 말고 따로): {"image":"C:\\\\…\\\\사진.jpg","cell":"T3.r2c0"} 칸에 / {"image":"…","after":"B20"|"P5"|"end"} 그 문단 뒤에. image는 이 PC의 그림 파일 절대 경로(png·jpg·gif·bmp·webp), "width":mm 선택',
 ].join('\n');
 
 const TOOLS = [
@@ -35,7 +36,7 @@ const TOOLS = [
       force: { type: 'boolean', description: '사람이 고친 칸도 덮어쓰기(사람이 허락했을 때만)' },
     }, required: ['ops'] } },
   { name: 'undo_last', description: '마지막 edit_document를 되돌린다.', inputSchema: { type: 'object', properties: {} } },
-  { name: 'save_document', description: '저장. path를 비우면 연 파일에 그대로 저장. path를 주면 그 이름으로(.hwp/.hwpx). 이미 있는 다른 파일을 덮어쓸 때는 서일 오피스 창에서 사람이 확인한다.', inputSchema: { type: 'object', properties: { path: { type: 'string' } } } },
+  { name: 'save_document', description: '저장. path를 비우면 연 파일에 그대로 저장. path를 주면 그 이름으로(.hwpx — .hwp 저장은 막혀 있음). 이미 있는 다른 파일을 덮어쓸 때는 서일 오피스 창에서 사람이 확인한다.', inputSchema: { type: 'object', properties: { path: { type: 'string' } } } },
 ];
 
 function send(o) { process.stdout.write(JSON.stringify(o) + '\n'); }
@@ -80,7 +81,7 @@ async function onMessage(m) {
     return send({ jsonrpc: '2.0', id, result: {
       protocolVersion: (params && params.protocolVersion) || '2025-06-18',
       capabilities: { tools: {} },
-      serverInfo: { name: 'seoil-office', version: '0.2.0' },
+      serverInfo: { name: 'seoil-office', version: '0.3.0' },
       instructions: '서일 오피스(한글 hwp 편집기)를 사람이 보는 앞에서 다룬다. 순서: get_guide(처음 한 번) → open_document/new_document → read_document → edit_document(조금씩, note에 한 줄 요약) → 사람이 확인하면 save_document. 사람이 고친 칸은 존중하고, 덮어쓰기 전에 물어본다. 저장은 사람이 원할 때만. 받은 양식 원본에 덮어쓰지 말고 새 이름(path)으로 저장하거나, 지난 문서를 고쳐 쓸 때는 rewrite_copy로 사본을 만든다.',
     } });
   }
