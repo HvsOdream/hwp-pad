@@ -204,6 +204,21 @@
     ['keydown', 'keyup', 'keypress'].forEach(function (t) { ui.panel.addEventListener(t, function (e) { e.stopPropagation(); }); });
     ui.panel.addEventListener('drop', function (e) { e.preventDefault(); e.stopPropagation(); addFiles(e.dataTransfer.files); });
     ui.panel.addEventListener('dragover', function (e) { e.preventDefault(); });
+    // 캡처 도구·화면 캡처로 복사한 그림을 붙여넣으면 첨부로 받는다(2026-11-11). 글자 붙여넣기는 그대로 입력란으로.
+    ui.panel.addEventListener('paste', function (e) {
+      var cd = e.clipboardData, imgs = [];
+      if (!cd) return;
+      Array.prototype.forEach.call(cd.items || [], function (it) { if (it.kind === 'file' && /^image\//.test(it.type)) { var f = it.getAsFile(); if (f) imgs.push(f); } });
+      if (!imgs.length) Array.prototype.forEach.call(cd.files || [], function (f) { if (/^image\//.test(f.type)) imgs.push(f); });
+      if (!imgs.length) return;
+      e.preventDefault(); e.stopPropagation();
+      var d = new Date(), z = function (n) { return (n < 10 ? '0' : '') + n; }, stamp = z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds());
+      addFiles(imgs.map(function (f, i) {
+        var ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+        var generic = !f.name || /^image\.\w+$/i.test(f.name);
+        return generic ? new File([f], '캡처_' + stamp + (imgs.length > 1 ? '_' + (i + 1) : '') + '.' + ext, { type: f.type }) : f;
+      }));
+    });
     document.body.appendChild(ui.panel); document.body.appendChild(fab);
     refreshForm();
   }

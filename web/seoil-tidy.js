@@ -102,4 +102,36 @@
   function currentName() { try { var c = W().tidySettings(); return c.presets[c.cur].name; } catch (e) { return ''; } }
 
   window.SeoilTidy = { open: open, close: close, currentName: currentName };
+  // ---------- 한글의 문단 여백 글쇠 (2026-11-11) ----------
+  //  Ctrl+F5 첫 줄 내어쓰기 · Ctrl+F6 첫 줄 들여쓰기 · Ctrl+F7 양쪽 여백 줄이기 · Ctrl+F8 양쪽 여백 늘이기
+  //  Ctrl+Alt+F5 왼쪽 여백 줄이기 · Ctrl+Alt+F6 왼쪽 여백 늘이기 · Ctrl+Alt+F7 오른쪽 여백 늘이기 · Ctrl+Alt+F8 오른쪽 여백 줄이기
+  //  한 번에 1pt. 커서 문단(블록이면 블록의 문단들, 표 칸 안도)에 적용 — 편집기의 문단 모양 경로(되돌리기 됨)를 탄다.
+  //  브라우저에서는 Ctrl+F5 가 「새로 고침」이라 여기서 먼저 잡는다.
+  var PT = 200;            // 1pt = 100 HWPUNIT, applyParaFormat 은 그 2배 값을 받는다
+  var PX = 150;            // 읽은 값은 px(96dpi): 1px = 75 HWPUNIT → ×2
+  function marginKey(e) {
+    if (!e.ctrlKey || e.metaKey || e.shiftKey) return;
+    var k = e.key; if (k !== 'F5' && k !== 'F6' && k !== 'F7' && k !== 'F8') return;
+    var t = e.target;
+    if (!t || t.tagName !== 'TEXTAREA' || (t.closest && t.closest('#seoil-ai, .dialog, .dialog-overlay, .modal, [role=dialog]'))) return; // 편집기 입력란일 때만
+    if (document.body.classList.contains('seoil-view')) return;
+    var b = B(); if (!b || !b.paraProps || !b.applyPara) return;
+    e.preventDefault(); e.stopPropagation();
+    var pp; try { pp = b.paraProps(); } catch (err) { return; }
+    if (!pp) return;
+    var left = Math.round((pp.marginLeft || 0) * PX), right = Math.round((pp.marginRight || 0) * PX), ind = Math.round((pp.indent || 0) * PX), props = {};
+    if (!e.altKey) {
+      if (k === 'F5') props.indent = ind - PT;                       // 첫 줄 내어쓰기
+      else if (k === 'F6') props.indent = ind + PT;                  // 첫 줄 들여쓰기
+      else { var d = k === 'F8' ? PT : -PT; props.marginLeft = Math.max(0, left + d); props.marginRight = Math.max(0, right + d); }
+    } else {
+      if (k === 'F5') props.marginLeft = Math.max(0, left - PT);
+      else if (k === 'F6') props.marginLeft = left + PT;
+      else if (k === 'F7') props.marginRight = right + PT;
+      else props.marginRight = Math.max(0, right - PT);
+    }
+    try { b.applyPara(props); } catch (err) {}
+  }
+  window.addEventListener('keydown', marginKey, true);
+
 })();
