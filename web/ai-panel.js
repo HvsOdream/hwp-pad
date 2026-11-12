@@ -667,7 +667,7 @@
   }
   function toggleFolder(force) {
     F.open = force !== undefined ? force : !F.open;
-    if (!F.open) { ui.folder.style.display = 'none'; return; }
+    if (!F.open) { ui.folder.style.display = 'none'; F.q = ''; return; }
     ui.folder.style.display = ''; ui.folder.innerHTML = ''; ui.folder.appendChild(el('div', { class: 'fn', text: '폴더를 읽는 중…' }));
     folderReady(false).then(function (h) { return h || folderReady(true); }).then(function (h) {
       if (!h) { F.open = false; ui.folder.style.display = 'none'; return; }
