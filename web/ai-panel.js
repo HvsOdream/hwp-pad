@@ -73,6 +73,15 @@
     '#seoil-ai .applied{border:1px solid #CFE8DA;background:#F3FAF6;border-radius:10px;padding:8px 12px;font-size:12px;display:flex;align-items:center;gap:8px}',
     '#seoil-ai .ft{border-top:1px solid #ECEEF1;padding:10px 12px;display:flex;flex-direction:column;gap:8px}',
     '#seoil-ai .len{display:flex;align-items:center;gap:4px;font-size:12px;color:#5F6670}#seoil-ai .len span{margin-right:4px}#seoil-ai .len button{font:inherit;font-size:12px;padding:2px 10px;border:1px solid #D9DCE1;border-radius:12px;background:#fff;color:#5F6670;cursor:pointer}#seoil-ai .len button.on{border-color:#2F5BEA;background:#EEF2FD;color:#2F5BEA;font-weight:600}',
+    '#seoil-ai .len .fbtn{border-color:#C9D4F8;color:#2F5BEA}',
+    '#seoil-ai .fold{border:1px solid #D9DCE1;border-radius:10px;background:#fff;display:flex;flex-direction:column;max-height:300px;overflow:hidden}',
+    '#seoil-ai .fold .fh{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid #ECEEF1;font-size:12px;color:#5F6670}#seoil-ai .fold .fh b{color:#1F2329;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}',
+    '#seoil-ai .fold .fh button{font:inherit;font-size:12px;border:0;background:none;color:#2F5BEA;cursor:pointer;padding:0 2px}',
+    '#seoil-ai .fold input{font:inherit;font-size:13px;border:0;border-bottom:1px solid #ECEEF1;padding:7px 10px;outline:none}',
+    '#seoil-ai .fold .fl{overflow:auto;display:flex;flex-direction:column}',
+    '#seoil-ai .fold .fi{display:flex;gap:8px;align-items:baseline;padding:7px 10px;border:0;background:none;text-align:left;font:inherit;font-size:13px;cursor:pointer}#seoil-ai .fold .fi:hover{background:#F3F6FE}',
+    '#seoil-ai .fold .fi span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#seoil-ai .fold .fi small{color:#8A9099;flex:none}',
+    '#seoil-ai .fold .fn{padding:14px 10px;font-size:12px;color:#5F6670;text-align:center}',
     '#seoil-ai .att{display:flex;flex-wrap:wrap;gap:6px}#seoil-ai .att span{font-size:12px;background:#EEF2FD;color:#2F5BEA;border-radius:6px;padding:2px 8px}',
     '#seoil-ai textarea,#seoil-ai input[type=text],#seoil-ai input[type=password]{width:100%;font:inherit;font-size:13px;border:1px solid #D9DCE1;border-radius:8px;padding:8px 10px;resize:none}',
     '#seoil-ai .send{font:inherit;font-size:13px;padding:0 14px;height:40px;border:0;border-radius:8px;background:#2F5BEA;color:#fff;cursor:pointer;flex:none}#seoil-ai .send:disabled{background:#9DB2F5;cursor:default}',
@@ -137,6 +146,7 @@
     '- 회의 결과 칸: □ 결정 사항 → ○ 내용, □ 후속 조치 → ○ 할 일(담당·기한이 자료에 있으면 괄호로). 회의 내용을 되풀이하지 않고 "그래서 무엇을 하기로 했는가"만 쓴다.',
     '- 기타 칸: 회의비 집행·차기 회의 일정·첨부처럼 본 안건이 아닌 것만. 없으면 비워 둔다.',
     '- remaining에는 아직 못 채운 칸과 이유를 짧게. 채팅 답은 한두 문장.',
+    '- PC에 있는 파일을 불러올 수 있느냐고 물으면: 직접 찾아 열지는 못하지만, 입력란 위 「자료 폴더」에서 폴더를 한 번 정해 두면 목록에서 눌러 넣을 수 있고(PC), 클립 단추·끌어다 놓기·캡처 붙여넣기(Ctrl+V)로도 넣을 수 있다고 안내한다.',
     '',
     '[본문 쓰기 — 메시지에 [본문 구조]가 있을 때: 계획서·보고서]',
     '- [본문 구조]의 B12 같은 번호가 문단입니다. [Ⅰ]은 장 제목 상자, [1.][가.][1)][가)][(1)]은 제목 단계, [□][○][-]는 개조식 단계, [본문]은 일반 문단.',
@@ -222,7 +232,13 @@
     var clip = el('button', { class: 'clip', title: '자료 첨부 (메모·녹취 글, 사진, 요청 공문 hwp·pdf)', onclick: function () { ui.file.click(); } });
     clip.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5F6670" stroke-width="1.8"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7-7l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8L10.2 17.9a1.7 1.7 0 0 1-2.4-2.4l8-8"/></svg>';
     ui.len = el('div', { class: 'len', title: '회의 내용·필요성 같은 서술 칸을 얼마나 길게 쓸지' }, [el('span', { text: '분량' })].concat(LENS.map(function (v) { var b = el('button', { type: 'button', text: v, onclick: function () { setLen(v); } }); b.dataset.len = v; return b; })));
-    var ft = ui.ft = el('div', { class: 'ft' }, [ui.att, ui.len, el('div', { class: 'row', style: 'align-items:flex-end' }, [clip, ui.input, ui.send]), ui.file]);
+    // 자료 폴더: 폴더를 한 번 정해 두면 목록에서 눌러 첨부한다(파일 고르기 창을 매번 거치지 않게). 폴더 고르기를 못 하는 기기(아이패드 등)에서는 숨김.
+    if (typeof window.showDirectoryPicker === 'function') {
+      ui.len.appendChild(el('span', { style: 'flex:1' }));
+      ui.len.appendChild(el('button', { type: 'button', class: 'fbtn', title: '정해 둔 폴더의 파일을 목록에서 골라 첨부', onclick: function () { toggleFolder(); }, text: '자료 폴더' }));
+    }
+    ui.folder = el('div', { class: 'fold', style: 'display:none' });
+    var ft = ui.ft = el('div', { class: 'ft' }, [ui.folder, ui.att, ui.len, el('div', { class: 'row', style: 'align-items:flex-end' }, [clip, ui.input, ui.send]), ui.file]);
     drawLen();
     ui.panel = el('div', { id: 'seoil-ai' }, [hd, ui.set, ui.log, ft]);
     ui.set.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
@@ -592,6 +608,95 @@
       r.readAsArrayBuffer(file);
     }); }));
   }
+  // ---------- 자료 폴더 (2026-11-12) ----------
+  // 폴더 핸들은 이 기기 IndexedDB에만 둔다. 읽기 전용. AI가 폴더를 뒤지지 않는다 — 사람이 목록에서 고른 파일만 첨부된다.
+  var FDB = 'seoil-ai-folder', FSTORE = 'kv', FKEY = 'dir', FEXT = /\.(hwp|hwpx|pdf|png|jpe?g|webp|txt|md)$/i, FMAX = 800, FDEPTH = 2;
+  var F = { dir: null, files: null, open: false, q: '' };
+  function fdb(op, val) {
+    return new Promise(function (res) {
+      try {
+        var q = indexedDB.open(FDB, 1);
+        q.onupgradeneeded = function () { q.result.createObjectStore(FSTORE); };
+        q.onerror = function () { res(null); };
+        q.onsuccess = function () {
+          try {
+            var tx = q.result.transaction(FSTORE, op === 'get' ? 'readonly' : 'readwrite'), st = tx.objectStore(FSTORE);
+            var r = op === 'get' ? st.get(FKEY) : op === 'set' ? st.put(val, FKEY) : st.delete(FKEY);
+            r.onsuccess = function () { res(op === 'get' ? r.result || null : true); }; r.onerror = function () { res(null); };
+          } catch (e) { res(null); }
+        };
+      } catch (e) { res(null); }
+    });
+  }
+  /** 저장해 둔 폴더를 읽을 수 있게(필요하면 브라우저가 한 번 묻는다). 사람의 누름 안에서 불러야 한다. */
+  function folderReady(pick) {
+    var get = F.dir ? Promise.resolve(F.dir) : fdb('get');
+    return get.then(function (h) {
+      if (h && !pick) {
+        return Promise.resolve(h.queryPermission ? h.queryPermission({ mode: 'read' }) : 'granted').then(function (p) {
+          return p === 'granted' ? p : (h.requestPermission ? h.requestPermission({ mode: 'read' }) : p);
+        }).then(function (p) { if (p === 'granted') { F.dir = h; return h; } return null; }, function () { return null; });
+      }
+      if (!pick) return null;
+      return window.showDirectoryPicker({ id: 'seoil-ai-folder', mode: 'read', startIn: 'documents' }).then(function (nh) {
+        F.dir = nh; F.files = null; return fdb('set', nh).then(function () { return nh; });
+      }, function () { return null; }); // 고르기 창에서 취소
+    });
+  }
+  /** 폴더 안 파일 목록(하위 폴더 2단계까지, 최근 고친 순) */
+  function folderList(dir) {
+    var out = [];
+    function walk(h, prefix, depth) {
+      if (out.length >= FMAX) return Promise.resolve();
+      var it = h.values(), jobs = [];
+      function next() {
+        return it.next().then(function (r) {
+          if (r.done || out.length >= FMAX) return;
+          var e = r.value;
+          if (e.kind === 'file' && FEXT.test(e.name) && e.name.charAt(0) !== '~' && e.name.charAt(0) !== '.') out.push({ name: e.name, path: prefix, handle: e, time: 0 });
+          else if (e.kind === 'directory' && depth < FDEPTH && e.name.charAt(0) !== '.' && e.name.charAt(0) !== '_') jobs.push(function () { return walk(e, prefix + e.name + '/', depth + 1); });
+          return next();
+        });
+      }
+      return next().then(function () { return jobs.reduce(function (p, j) { return p.then(j); }, Promise.resolve()); });
+    }
+    return walk(dir, '', 0).then(function () {
+      // 고친 날짜는 파일을 열어야 알 수 있다 — 목록에 든 것만 읽는다(내용은 읽지 않음)
+      return Promise.all(out.map(function (f) { return f.handle.getFile().then(function (file) { f.time = file.lastModified; }, function () {}); }));
+    }).then(function () { out.sort(function (a, b) { return b.time - a.time; }); return out; });
+  }
+  function toggleFolder(force) {
+    F.open = force !== undefined ? force : !F.open;
+    if (!F.open) { ui.folder.style.display = 'none'; return; }
+    ui.folder.style.display = ''; ui.folder.innerHTML = ''; ui.folder.appendChild(el('div', { class: 'fn', text: '폴더를 읽는 중…' }));
+    folderReady(false).then(function (h) { return h || folderReady(true); }).then(function (h) {
+      if (!h) { F.open = false; ui.folder.style.display = 'none'; return; }
+      return (F.files ? Promise.resolve(F.files) : folderList(h)).then(function (list) { F.files = list; drawFolder(); });
+    }).catch(function (e) { ui.folder.innerHTML = ''; ui.folder.appendChild(el('div', { class: 'fn', text: '폴더를 읽지 못했습니다: ' + (e && e.message || e) })); });
+  }
+  function fday(t) { if (!t) return ''; var d = new Date(t), n = new Date(); return d.toDateString() === n.toDateString() ? '오늘' : (d.getMonth() + 1) + '.' + d.getDate() + '.'; }
+  function drawFolder() {
+    ui.folder.innerHTML = '';
+    var list = el('div', { class: 'fl' });
+    var search = el('input', { type: 'text', placeholder: '파일 이름으로 찾기', value: F.q, oninput: function () { F.q = search.value; fill(); } });
+    function fill() {
+      list.innerHTML = '';
+      var q = F.q.trim().toLowerCase(), hit = (F.files || []).filter(function (f) { return !q || (f.path + f.name).toLowerCase().indexOf(q) >= 0; }).slice(0, 40);
+      if (!hit.length) { list.appendChild(el('div', { class: 'fn', text: q ? '맞는 파일이 없습니다.' : '이 폴더에 넣을 수 있는 파일(hwp·hwpx·pdf·그림·txt·md)이 없습니다.' })); return; }
+      hit.forEach(function (f) {
+        list.appendChild(el('button', { type: 'button', class: 'fi', title: f.path + f.name, onclick: function () {
+          f.handle.getFile().then(function (file) { return addFiles([file]); }).then(function () { toggleFolder(false); ui.input.focus(); }, function (e) { say('err', f.name + ' 읽기 실패: ' + (e && e.message || e)); });
+        } }, [el('span', { text: (f.path ? f.path : '') + f.name }), el('small', { text: fday(f.time) })]));
+      });
+    }
+    ui.folder.appendChild(el('div', { class: 'fh' }, [el('b', { text: F.dir ? F.dir.name : '' , title: F.dir ? F.dir.name : '' }), el('span', { text: '· 최근 고친 순' }), el('span', { style: 'flex:1' }),
+      el('button', { type: 'button', text: '새로 읽기', onclick: function () { F.files = null; toggleFolder(true); } }),
+      el('button', { type: 'button', text: '폴더 바꾸기', onclick: function () { folderReady(true).then(function (h) { if (h) toggleFolder(true); }); } }),
+      el('button', { type: 'button', text: '닫기', onclick: function () { toggleFolder(false); } })]));
+    ui.folder.appendChild(search); ui.folder.appendChild(list); fill();
+    setTimeout(function () { try { search.focus(); } catch (e) {} }, 0);
+  }
+
   function drawAttach() {
     ui.att.innerHTML = '';
     S.attach.forEach(function (a, i) {
