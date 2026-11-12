@@ -30,6 +30,19 @@
     '#seoil-home h1{margin:0;font-size:30px;font-weight:700;letter-spacing:-.5px;text-align:center}',
     '#seoil-home .search{width:100%;max-width:720px;margin:0 auto;display:flex;align-items:center;gap:12px;border:2px solid #1C1F23;border-radius:14px;padding:0 18px;height:58px;background:#fff}',
     '#seoil-home .search input{border:0;font:inherit;font-size:17px;flex:1;outline:none;color:#1C1F23;background:transparent;min-width:0}',
+    '#seoil-home .srow{width:100%;max-width:720px;margin:0 auto;display:flex;flex-wrap:wrap;gap:10px}#seoil-home .srow .search{flex:1 1 300px;margin:0}',
+    '#seoil-home .openbtn{font:inherit;font-size:15px;font-weight:600;height:58px;padding:0 18px;border:1px solid #D5D9DF;border-radius:14px;background:#fff;color:#1C1F23;cursor:pointer;display:inline-flex;align-items:center;gap:8px;flex:0 0 auto}#seoil-home .openbtn:hover{border-color:#2F5BEA}#seoil-home .openbtn small{font-size:12px;font-weight:400;color:#6B727C}',
+    '@media (max-width:520px){#seoil-home .openbtn{flex:1 1 100%;justify-content:center;height:48px}}',
+    '#seoil-home .guide{max-width:860px}#seoil-home .guide h1{text-align:left;font-size:26px}',
+    '#seoil-home .guide .need{border:1px solid #C9D4F8;background:#F3F6FE;border-radius:14px;padding:14px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:12px;font-size:14px;line-height:1.6}#seoil-home .guide .need span{flex:1 1 320px}',
+    '#seoil-home .guide .gbtn{font:inherit;font-size:13px;font-weight:600;border:1px solid #D5D9DF;background:#fff;border-radius:10px;padding:8px 14px;cursor:pointer;color:#1C1F23;text-decoration:none;display:inline-block}#seoil-home .guide .gbtn:hover{border-color:#2F5BEA}#seoil-home .guide .gbtn.pri{background:#2F5BEA;border-color:#2F5BEA;color:#fff}#seoil-home .guide .gbtn:disabled{opacity:.5;cursor:default}',
+    '#seoil-home .guide h2{margin:0;font-size:15px}',
+    '#seoil-home .guide .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}',
+    '#seoil-home .guide .step{border:1px solid #E3E6EA;border-radius:14px;background:#fff;padding:14px 16px;display:flex;flex-direction:column;gap:6px;min-height:118px}#seoil-home .guide .step.dim{opacity:.55}',
+    '#seoil-home .guide .step small{font-size:12px;color:#6B727C}#seoil-home .guide .step b{font-size:15px}#seoil-home .guide .step .st{font-size:13px;line-height:1.5;color:#3D434B;margin-top:auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px}',
+    '#seoil-home .guide .ex{display:flex;flex-direction:column;gap:8px}#seoil-home .guide .exi{border:1px solid #E3E6EA;border-radius:12px;background:#fff;padding:12px 14px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}',
+    '#seoil-home .guide .exi b{flex:0 0 108px;font-size:13px}#seoil-home .guide .exi span{flex:1 1 300px;font-size:14px;line-height:1.55}',
+    '#seoil-home .guide .tips{border:1px dashed #C4C9D1;border-radius:12px;padding:12px 16px;font-size:13px;line-height:1.8;color:#3D434B}#seoil-home .guide .tips b{color:#1C1F23}',
     '#seoil-home .doors{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}',
     '#seoil-home .door{font:inherit;text-align:left;border:1px solid #E3E6EA;border-radius:16px;background:#fff;padding:22px;display:flex;flex-direction:column;gap:10px;cursor:pointer;min-height:168px;color:#1C1F23}',
     '#seoil-home .door:hover{border-color:#2F5BEA}',
@@ -326,6 +339,81 @@
   var ui = {}, S = { tab: '전체', q: '' };
   function busy(on, t) { ui.main.style.opacity = on ? '.6' : '1'; ui.main.style.pointerEvents = on ? 'none' : ''; ui.msg.textContent = t || ''; }
 
+  // ---------- Claude로 작성하기 (안내 화면, 2026-11-12) ----------
+  // 홈 자리에 뜬다. 연결은 설정의 「내 Claude」 카드와 같은 창구(window.seoilDesktop)를 쓴다.
+  var DESKTOP_URL = 'https://github.com/HvsOdream/hwp-pad/releases?q=desktop';
+  var EXAMPLES = [
+    ['양식 채우기', '서일 오피스로 회의록 양식을 열고, 다운로드 폴더의 개최 공문과 아래 메모로 채워 줘.\n(메모)'],
+    ['열린 문서 이어서', '서일 오피스에 지금 열린 문서의 빈칸을 내 정보와 오늘 날짜로 채우고, 모르는 칸은 물어봐 줘.'],
+    ['보고서 본문', '서일 오피스에 열린 보고서의 「2. 추진 계획」 절을 이 자료로 써 줘. □ ○ - 개조식으로, 한 절씩 확인받으면서.'],
+    ['그림 넣기', '바탕 화면의 회의사진.jpg 를 서일 오피스에 열린 문서의 회의 사진 칸에 넣어 줘.'],
+    ['고쳐 쓰기', '방금 쓴 회의 내용 칸만 더 자세히 써 줘. 다른 칸은 그대로 두고.'],
+  ];
+  function openGuide() {
+    if (!ui.guide) { ui.guide = el('main', { class: 'guide', style: 'display:none' }); ui.root.insertBefore(ui.guide, ui.ver); }
+    drawGuide(); ui.main.style.display = 'none'; ui.guide.style.display = ''; ui.root.scrollTop = 0;
+  }
+  function closeGuide() { if (ui.guide) ui.guide.style.display = 'none'; ui.main.style.display = ''; }
+  function drawGuide() {
+    var D = window.seoilDesktop, g = ui.guide, note = el('div', { style: 'font-size:13px;color:#3D434B;min-height:18px', role: 'status' });
+    g.innerHTML = '';
+    function step(n, title, dim) { var st = el('div', { class: 'st' }); return { st: st, box: el('div', { class: 'step' + (dim ? ' dim' : '') }, [el('small', { text: n + '단계' }), el('b', { text: title }), st]) }; }
+    var s1 = step(1, '서일 오피스 설치판'), s2 = step(2, 'Claude 데스크톱', !D), s3 = step(3, '연결', !D);
+    if (D) s1.st.textContent = '✓ 지금 설치판에서 보고 있습니다';
+    else { s1.st.appendChild(el('span', { text: '지금은 웹입니다. 윈도우 설치판이 필요합니다.' })); s1.st.appendChild(el('a', { class: 'gbtn pri', href: DESKTOP_URL, target: '_blank', rel: 'noopener', text: '설치판 받기' })); }
+    function run(fn) {
+      note.textContent = '잠시만요…';
+      fn().then(function (r) {
+        note.textContent = r && r.cancelled ? '' : r && r.msg ? r.msg : r && r.ok ? 'Claude 데스크톱을 트레이에서 완전히 끄고 다시 켜면 연결됩니다.' : '';
+        status();
+      }).catch(function (e) { note.textContent = '실패: ' + (e && e.message || e); });
+    }
+    function status() {
+      s2.st.innerHTML = ''; s3.st.innerHTML = '';
+      if (!D) { s2.st.textContent = '설치판에서 확인합니다'; s3.st.textContent = '설치판에서 「연결」을 누릅니다'; return; }
+      if (!D.claudeStatus) { // 예전 설치판: 상태를 모른다
+        s2.st.textContent = 'Claude 데스크톱이 깔려 있어야 합니다';
+        if (D.connectClaude) s3.st.appendChild(el('button', { type: 'button', class: 'gbtn pri', text: '연결', onclick: function () { run(D.connectClaude); } }));
+        return;
+      }
+      s2.st.textContent = '확인 중…';
+      D.claudeStatus().then(function (s) {
+        s2.st.textContent = s.installed ? '✓ 설치됨' : '없음 — claude.ai/download 에서 받아 로그인하세요';
+        s3.box.classList.toggle('dim', !s.installed);
+        if (!s.installed) { s3.st.textContent = 'Claude 데스크톱을 먼저 설치합니다'; return; }
+        if (s.connected) {
+          s3.st.appendChild(el('span', { text: '● 연결됨' }));
+          s3.st.appendChild(el('button', { type: 'button', class: 'gbtn', text: '연결 끊기', onclick: function () { run(D.disconnectClaude); } }));
+        } else {
+          s3.st.appendChild(el('span', { text: '누른 뒤 Claude를 트레이에서 완전히 끄고 다시 켭니다.' }));
+          s3.st.appendChild(el('button', { type: 'button', class: 'gbtn pri', text: '연결', onclick: function () { run(D.connectClaude); } }));
+        }
+      }).catch(function () { s2.st.textContent = '상태를 확인하지 못했습니다'; });
+    }
+    function copy(text, btn) {
+      var done = function () { btn.textContent = '복사됨'; setTimeout(function () { btn.textContent = '복사'; }, 1500); };
+      try { navigator.clipboard.writeText(text).then(done, function () { note.textContent = '복사하지 못했습니다. 문장을 직접 끌어 복사해 주세요.'; }); } catch (e) { note.textContent = '복사하지 못했습니다. 문장을 직접 끌어 복사해 주세요.'; }
+    }
+    [
+      el('div', { style: 'display:flex;align-items:center;gap:12px;flex-wrap:wrap' }, [el('button', { type: 'button', class: 'gbtn', text: '← 홈', onclick: closeGuide }), el('h1', { text: 'Claude로 작성하기' })]),
+      el('div', { class: 'need' }, [
+        el('span', { html: '내 Claude가 이 PC의 파일을 읽고 서일 오피스에 직접 씁니다. <b>Claude 구독</b>과 <b>윈도우 설치판</b>이 필요합니다.' }),
+        el('button', { type: 'button', class: 'gbtn', text: '없으면 → 양식 채우기(학교 AI)', onclick: function () { closeGuide(); pickForm(); } }),
+      ]),
+      el('h2', { text: '연결 — 처음 한 번' }),
+      el('div', { class: 'steps' }, [s1.box, s2.box, s3.box]),
+      note,
+      el('h2', { text: '이렇게 시키세요 — Claude 창에 그대로 붙여 넣기' }),
+      el('div', { class: 'ex' }, EXAMPLES.map(function (x) {
+        var b = el('button', { type: 'button', class: 'gbtn', text: '복사', 'aria-label': x[0] + ' 예시 복사' });
+        b.addEventListener('click', function () { copy(x[1], b); });
+        return el('div', { class: 'exi' }, [el('b', { text: x[0] }), el('span', { style: 'white-space:pre-line', text: x[1] }), b]);
+      })),
+      el('div', { class: 'tips', html: '<b>알아 둘 것</b><br>· Claude가 쓰는 동안 이 창에서 보면서 직접 고쳐도 됩니다. 사람이 고친 칸은 Claude가 덮어쓰지 않습니다.<br>· 저장은 .hwpx 로 됩니다. 마음에 안 들면 「되돌리기」.<br>· 학교 AI 사용량을 쓰지 않습니다(본인 Claude 구독으로 동작).' }),
+    ].forEach(function (n) { g.appendChild(n); });
+    status();
+  }
+
   function door(cls, icon, iconColor, title, desc, key, onclick) {
     return el('button', { type: 'button', class: 'door' + (cls ? ' ' + cls : ''), onclick: onclick }, [
       el('span', { class: 'ic' }, [svg(icon, iconColor)]), el('b', { text: title }), el('span', { class: 'd', text: desc }), el('span', { class: 'k', text: key })]);
@@ -441,6 +529,7 @@
     ui.nowSave.textContent = dirty ? '저장하고 닫기' : '닫기';
   }
   function open() {
+    closeGuide();
     snapshot(false).then(drawRecent);
     drawForms(); drawRecent();
     drawNow();
@@ -530,13 +619,17 @@
     ui.main = el('main', {}, [
       el('div', { style: 'display:flex;flex-direction:column;gap:18px' }, [
         el('h1', { text: '무엇을 쓸까요?' }),
-        el('label', { class: 'search' }, [svg('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'), ui.search]),
+        el('div', { class: 'srow' }, [
+          el('label', { class: 'search' }, [svg('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'), ui.search]),
+          // 파일 열기: 큰 문에서 내려 검색 줄 옆으로(2026-11-12). Ctrl+O·파일 메뉴·끌어다 놓기는 그대로.
+          el('button', { type: 'button', class: 'openbtn', title: '가지고 있는 한글 문서를 열어 편집합니다', onclick: openFile }, [svg('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'), '파일 열기', el('small', { text: 'Ctrl+O' })]),
+        ]),
       ]),
       ui.now,
       el('div', { class: 'doors' }, [
         door('', '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 11v6M9 14h6"/>', '#1C1F23', '새 문서', 'A4 빈 문서로 바로 씁니다. 오른쪽 AI에게 초안을 부탁해도 됩니다.', 'Ctrl+N', newDoc),
         door('main', '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M10 10v10"/><path d="M13 14.5h4M13 17h3"/>', '#FFFFFF', '양식 채우기', '공문에 붙어 온 hwp 양식을 원본 그대로 열고, 빈칸을 AI와 채웁니다.', 'hwp·hwpx를 화면에 놓아도 됩니다', pickForm),
-        door('', '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', '#1C1F23', '파일 열기', '가지고 있는 한글 문서를 열어 편집합니다. 빈칸이 있으면 AI가 먼저 제안합니다.', 'Ctrl+O', openFile),
+        door('', '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.5l2.4 2.4 4.6-5.2"/>', '#1C1F23', 'Claude로 작성하기', '내 Claude에게 시켜서 문서를 만듭니다. 연결 방법과 지시 예시.', 'Claude 구독 · 윈도우 설치판', openGuide),
       ]),
       ui.msg,
       el('section', { class: 'tpl' }, [
