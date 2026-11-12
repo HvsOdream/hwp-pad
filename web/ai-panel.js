@@ -72,6 +72,7 @@
     '#seoil-ai .chip{font:inherit;font-size:13px;padding:5px 12px;border:1px solid #D9DCE1;border-radius:16px;background:#fff;cursor:pointer}#seoil-ai .chip:hover{border-color:#2F5BEA;color:#2F5BEA}#seoil-ai .chip:disabled{opacity:.5;cursor:default}',
     '#seoil-ai .applied{border:1px solid #CFE8DA;background:#F3FAF6;border-radius:10px;padding:8px 12px;font-size:12px;display:flex;align-items:center;gap:8px}',
     '#seoil-ai .ft{border-top:1px solid #ECEEF1;padding:10px 12px;display:flex;flex-direction:column;gap:8px}',
+    '#seoil-ai .len{display:flex;align-items:center;gap:4px;font-size:12px;color:#5F6670}#seoil-ai .len span{margin-right:4px}#seoil-ai .len button{font:inherit;font-size:12px;padding:2px 10px;border:1px solid #D9DCE1;border-radius:12px;background:#fff;color:#5F6670;cursor:pointer}#seoil-ai .len button.on{border-color:#2F5BEA;background:#EEF2FD;color:#2F5BEA;font-weight:600}',
     '#seoil-ai .att{display:flex;flex-wrap:wrap;gap:6px}#seoil-ai .att span{font-size:12px;background:#EEF2FD;color:#2F5BEA;border-radius:6px;padding:2px 8px}',
     '#seoil-ai textarea,#seoil-ai input[type=text],#seoil-ai input[type=password]{width:100%;font:inherit;font-size:13px;border:1px solid #D9DCE1;border-radius:8px;padding:8px 10px;resize:none}',
     '#seoil-ai .send{font:inherit;font-size:13px;padding:0 14px;height:40px;border:0;border-radius:8px;background:#2F5BEA;color:#fff;cursor:pointer;flex:none}#seoil-ai .send:disabled{background:#9DB2F5;cursor:default}',
@@ -118,6 +119,23 @@
     '- 서술 칸(회의 내용·필요성·추진 내용 등)은 □ 큰 항목, ○ 하위, - 세부 3단으로 쓴다. 각 줄 앞에 기호를 붙이고 ○는 앞에 공백 1칸, -는 2칸. 안내문에 분량(예: 200자 내외)이 있으면 지킨다.',
     '- 문체는 개조식 명사형 종결(…함, …임, …예정). 군더더기 없이.',
     '- 사용자가 고쳐 달라고 하면 해당 칸만 다시 보낸다.',
+    '- 범위를 말하지 않은 고쳐 쓰기 부탁("더 구체적으로", "길게", "자세히", "다시 써 줘")은 서술 칸(회의 내용·회의 결과·필요성·추진 내용처럼 긴 글 칸)만 다시 쓴다. 이미 채운 짧은 칸(프로그램명·회의명·일시·장소·안건·소속·성명 등)은 사용자가 그 칸을 짚어 말하지 않으면 다시 보내지 않는다.',
+    '- 표의 다른 칸에 이미 들어간 정보(회의명·일시·장소·목적·참석 대상)를 서술 칸에 "개요"로 되풀이하지 않는다. 서술 칸은 그 칸의 라벨이 묻는 내용만 쓴다.',
+    '',
+    '[분량 — 메시지의 [분량] 줄을 따른다. 서술 칸에만 해당]',
+    '- 간단: 칸마다 □ 1~2개, □ 아래 ○ 1~2개. - 는 쓰지 않는다.',
+    '- 보통: 칸마다 □ 2~3개, □ 아래 ○ 2~3개, 꼭 필요한 곳에만 -.',
+    '- 자세히: 칸마다 □ 3~4개, □ 아래 ○ 3~4개, ○ 아래 - 로 근거·세부·담당·기한을 단다. 한 줄은 한 문장 분량(40~70자)으로 쓴다.',
+    '- 분량은 받은 자료를 얼마나 풀어 쓰느냐이지, 없는 사실을 만들어도 된다는 뜻이 아니다. 자료가 모자라 그 분량을 채울 수 없으면 채울 수 있는 만큼만 쓰고 무엇이 더 필요한지 question으로 묻는다.',
+    '- 안내문에 분량(예: 200자 내외)이 적힌 칸은 그 안내가 먼저다.',
+    '',
+    '[회의록 — 양식이 회의록일 때]',
+    '- 먼저 받은 자료가 무엇인지 본다. (가) 회의 메모·녹취·결과 정리 = 실제 논의가 들어 있음 / (나) 개최 안내·요청 공문·계획 = 언제 어디서 무엇을 논의할지만 있고 실제 논의·결정이 없음.',
+    '- (나)만 받았으면: 회의명·일시·장소·안건처럼 자료에 있는 칸은 바로 채우고, 회의 내용·회의 결과 칸은 쓰기 전에 question으로 묻는다. text "회의에서 실제로 나온 이야기(메모·녹취)가 있나요?", options 예: "메모를 붙여 넣을게요" / "안건 기준 초안으로 써 주세요" / "내용 칸은 비워 두세요".',
+    '- "안건 기준 초안"을 고르면: 공문의 목적·안건·참석 대상에서 논의 항목을 뽑아 □(안건별 논의 주제) → ○(다룰 내용·검토 관점) 으로 쓰고, 실제 발언·결정·수치·일정이 들어갈 자리마다 [확인 필요]를 남긴다. 초안임을 채팅 답에 한 문장으로 알린다.',
+    '- 회의 내용 칸: 안건별로 □ 안건·논의 주제 → ○ 논의된 내용·제시된 의견(누가 어떤 입장이었는지 자료에 있으면 소속 단위로) → - 근거·세부. 시간 순서가 아니라 안건 순서로 묶는다.',
+    '- 회의 결과 칸: □ 결정 사항 → ○ 내용, □ 후속 조치 → ○ 할 일(담당·기한이 자료에 있으면 괄호로). 회의 내용을 되풀이하지 않고 "그래서 무엇을 하기로 했는가"만 쓴다.',
+    '- 기타 칸: 회의비 집행·차기 회의 일정·첨부처럼 본 안건이 아닌 것만. 없으면 비워 둔다.',
     '- remaining에는 아직 못 채운 칸과 이유를 짧게. 채팅 답은 한두 문장.',
     '',
     '[본문 쓰기 — 메시지에 [본문 구조]가 있을 때: 계획서·보고서]',
@@ -168,6 +186,11 @@
 
   // ---------- 상태 ----------
   var S = { msgs: [], pendingTool: null, attach: [], busy: false, mode: 'fill' };
+  // 서술 칸 분량(간단·보통·자세히) — 기기에 기억
+  var LS_LEN = 'seoil.ai.len', LENS = ['간단', '보통', '자세히'];
+  function lenNow() { var v = ls(LS_LEN); return LENS.indexOf(v) >= 0 ? v : '보통'; }
+  function setLen(v) { ls(LS_LEN, v); drawLen(); }
+  function drawLen() { if (!ui.len) return; Array.prototype.forEach.call(ui.len.querySelectorAll('button'), function (b) { b.classList.toggle('on', b.dataset.len === lenNow()); }); }
   var ui = {};
 
   function build() {
@@ -198,7 +221,9 @@
     ui.send = el('button', { class: 'send', onclick: function () { send(); }, text: '보내기' });
     var clip = el('button', { class: 'clip', title: '자료 첨부 (메모·녹취 글, 사진, 요청 공문 hwp·pdf)', onclick: function () { ui.file.click(); } });
     clip.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5F6670" stroke-width="1.8"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7-7l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8L10.2 17.9a1.7 1.7 0 0 1-2.4-2.4l8-8"/></svg>';
-    var ft = ui.ft = el('div', { class: 'ft' }, [ui.att, el('div', { class: 'row', style: 'align-items:flex-end' }, [clip, ui.input, ui.send]), ui.file]);
+    ui.len = el('div', { class: 'len', title: '회의 내용·필요성 같은 서술 칸을 얼마나 길게 쓸지' }, [el('span', { text: '분량' })].concat(LENS.map(function (v) { var b = el('button', { type: 'button', text: v, onclick: function () { setLen(v); } }); b.dataset.len = v; return b; })));
+    var ft = ui.ft = el('div', { class: 'ft' }, [ui.att, ui.len, el('div', { class: 'row', style: 'align-items:flex-end' }, [clip, ui.input, ui.send]), ui.file]);
+    drawLen();
     ui.panel = el('div', { id: 'seoil-ai' }, [hd, ui.set, ui.log, ft]);
     ui.set.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
     ['keydown', 'keyup', 'keypress'].forEach(function (t) { ui.panel.addEventListener(t, function (e) { e.stopPropagation(); }); });
@@ -612,7 +637,7 @@
       }
     } catch (e) {}
     var map = window.SeoilFill.mapText(m, { all: full });
-    return (rw ? '[모드] 다시 쓰기\n' : '') + body + selLine + '[칸 지도' + (rw ? ' — 이미 쓴 글 포함' : '') + ']\n' + (map || '(없음)') + '\n\n[문서 이름] ' + fileName() + '\n[내 정보] ' + profileText() + '\n[오늘] ' + new Date().toISOString().slice(0, 10);
+    return (rw ? '[모드] 다시 쓰기\n' : '') + body + selLine + '[칸 지도' + (rw ? ' — 이미 쓴 글 포함' : '') + ']\n' + (map || '(없음)') + '\n\n[문서 이름] ' + fileName() + '\n[내 정보] ' + profileText() + '\n[분량] ' + lenNow() + '\n[오늘] ' + new Date().toISOString().slice(0, 10);
   }
 
   function send(text) {
@@ -631,7 +656,7 @@
     say('me', (S.attach.length ? '첨부 ' + S.attach.map(function (a) { return a.name; }).join(', ') + (text ? '\n' : '') : '') + (text || ''));
     S.attach = []; drawAttach(); ui.input.value = '';
     S.msgs.push({ role: 'user', content: content });
-    ui.log.querySelectorAll('.q button').forEach(function (b) { b.disabled = true; });
+    ui.log.querySelectorAll('.q button, .ml button').forEach(function (b) { b.disabled = true; });
     call();
   }
 
@@ -677,8 +702,19 @@
         S.pendingTool = { id: b.id, result: res };
         if (inp.remaining && inp.remaining.length) say('sys', '남은 칸: ' + inp.remaining.join(' · '));
         if (inp.question && inp.question.text) ask(inp.question);
+        else if (/^적용됨/.test(res) && longCellWritten(inp.ops)) moreLess();
       }
     });
+  }
+  /** 서술 칸(긴 글)을 쓴 op 가 있었나 — 있으면 「더 자세히 / 더 간단히」를 보여 준다 */
+  function longCellWritten(ops) {
+    return (ops || []).some(function (o) { return o && ((o.cell && typeof o.text === 'string' && (o.text.length > 80 || /\n/.test(o.text))) || o.under || (o.after && o.items)); });
+  }
+  function moreLess() {
+    var i = LENS.indexOf(lenNow()), row = el('div', { class: 'row ml', style: 'flex-wrap:wrap;gap:6px' });
+    if (i < LENS.length - 1) row.appendChild(el('button', { class: 'chip', text: '더 자세히', onclick: function () { setLen(LENS[i + 1]); send('방금 쓴 서술 칸(긴 글 칸)만 더 자세히 다시 써 주세요. 다른 칸은 그대로 둡니다. 자료에 없는 사실은 만들지 말고 [확인 필요]로 남겨 주세요.'); } }));
+    if (i > 0) row.appendChild(el('button', { class: 'chip', text: '더 간단히', onclick: function () { setLen(LENS[i - 1]); send('방금 쓴 서술 칸(긴 글 칸)만 더 간단히 다시 써 주세요. 다른 칸은 그대로 둡니다.'); } }));
+    if (row.childNodes.length) { ui.log.appendChild(row); ui.log.scrollTop = ui.log.scrollHeight; }
   }
 
   /** ops 실행: 스냅샷 → 쓰기 → 구조 검사(다르면 되돌림) → 결과 글(AI에게 돌려줄 tool_result) */
