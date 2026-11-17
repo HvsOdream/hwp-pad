@@ -157,7 +157,8 @@
     '- 그림 op는 다른 op와 섞지 않는다. 글을 먼저 쓰고 → read_document로 번호를 다시 확인 → 그림 op만 따로 보낸다. 한 번에 그림 여러 장은 된다.',
     '- 서명·도장 칸에는 넣지 않는다(사람이 따로 말할 때만).',
   ].join('\n');
-  function guide() { var g = (window.SeoilAI && window.SeoilAI.system) || ''; return g ? g + '\n' + IMAGE_GUIDE : ''; }
+  var AGENT_NOTE = '[일하는 방식] 이 문서 작업은 화면 조작(컴퓨터 사용·스크린샷·마우스·키보드)이 아니라 이 연결 도구(open_document·read_document·edit_document·save_document)로만 한다. 도구로 안 되는 일은 화면 조작으로 넘어가지 말고 사람에게 말한다.';
+  function guide() { var g = (window.SeoilAI && window.SeoilAI.system) || ''; return g ? AGENT_NOTE + '\n\n' + g + '\n' + IMAGE_GUIDE : ''; }
 
   window.SeoilAgent = { status: status, read: read, edit: edit, editAsync: editAsync, undo: undo, newDocument: newDocument, rewriteCopy: rewriteCopy, waitOpened: waitOpened, exportBytes: exportBytes, guide: guide, remember: remember };
 })();

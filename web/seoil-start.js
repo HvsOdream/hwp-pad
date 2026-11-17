@@ -349,6 +349,8 @@
     ['그림 넣기', '바탕 화면의 회의사진.jpg 를 서일 오피스에 열린 문서의 회의 사진 칸에 넣어 줘.'],
     ['고쳐 쓰기', '방금 쓴 회의 내용 칸만 더 자세히 써 줘. 다른 칸은 그대로 두고.'],
   ];
+  // Claude가 화면 조작(컴퓨터 사용)으로 서일 오피스를 다루는 일이 있어, 복사되는 지시 문구 맨 앞에 한 줄을 붙인다(2026-11-17).
+  EXAMPLES.forEach(function (e) { e[1] = '컴퓨터 화면 조작 말고 서일 오피스 연결 도구로 해 줘.\n' + e[1]; });
   function openGuide() {
     if (!ui.guide) { ui.guide = el('main', { class: 'guide', style: 'display:none' }); ui.root.insertBefore(ui.guide, ui.ver); }
     drawGuide(); ui.main.style.display = 'none'; ui.guide.style.display = ''; ui.root.scrollTop = 0;

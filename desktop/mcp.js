@@ -21,15 +21,18 @@ const OPS_HELP = [
   '그림(다른 op와 섞지 말고 따로): {"image":"C:\\\\…\\\\사진.jpg","cell":"T3.r2c0"} 칸에 / {"image":"…","after":"B20"|"P5"|"end"} 그 문단 뒤에. image는 이 PC의 그림 파일 절대 경로(png·jpg·gif·bmp·webp), "width":mm 선택',
 ].join('\n');
 
+// 화면 조작(컴퓨터 사용)으로 새지 않게: 안내문과 도구 설명 맨 앞에 같은 말을 둔다(도구 이름·설명만 보고 고르는 환경이 있다).
+const NO_SCREEN = '서일 오피스(Seoil Office) 한글 문서(HWP/HWPX)를 열고·읽고·고치고·저장하는 일은 화면 조작(computer use·스크린샷·마우스·키보드)이 아니라 이 seoil-office 도구로 한다. 서일 오피스가 꺼져 있어도 도구를 부르면 알아서 켜진다.';
+
 const TOOLS = [
-  { name: 'status', description: '서일 오피스에 열린 문서 이름, 본문 쓰기 가능 여부, 사람이 고친 칸 목록.', inputSchema: { type: 'object', properties: {} } },
+  { name: 'status', description: NO_SCREEN + ' 이 도구: 서일 오피스에 열린 문서 이름, 본문 쓰기 가능 여부, 사람이 고친 칸 목록.', inputSchema: { type: 'object', properties: {} } },
   { name: 'get_guide', description: '양식 채우기·본문 쓰기 규칙과 ops 형식 전체 설명(처음 한 번 읽을 것). 설명에 나오는 fill_form은 edit_document를 말한다.', inputSchema: { type: 'object', properties: {} } },
   { name: 'list_documents', description: '폴더 안의 한글 문서(.hwp/.hwpx) 목록(하위 2단계까지).', inputSchema: { type: 'object', properties: { folder: { type: 'string', description: '절대 경로' } }, required: ['folder'] } },
-  { name: 'open_document', description: 'PC의 한글 파일을 서일 오피스 창에 연다. 사람이 그 창에서 보고 있다. 열고 나면 read_document 결과를 돌려준다.', inputSchema: { type: 'object', properties: { path: { type: 'string', description: '.hwp/.hwpx 절대 경로' } }, required: ['path'] } },
+  { name: 'open_document', description: '화면 조작 없이 PC의 한글 파일(.hwp/.hwpx)을 서일 오피스 창에 연다(앱을 직접 띄우거나 클릭하지 않는다). 사람이 그 창에서 보고 있다. 열고 나면 read_document 결과를 돌려준다.', inputSchema: { type: 'object', properties: { path: { type: 'string', description: '.hwp/.hwpx 절대 경로' } }, required: ['path'] } },
   { name: 'new_document', description: '새 문서. kind=report(서일 보고서 양식: 표지·Ⅰ장·1.·□·○ 단계) 또는 blank(빈 A4).', inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['report', 'blank'] } }, required: ['kind'] } },
   { name: 'rewrite_copy', description: '지금 열린 문서(예: 지난 회의록)를 오늘 날짜 이름의 사본으로 연다. 원본은 그대로 두고 사본을 고쳐 새 문서를 만들 때.', inputSchema: { type: 'object', properties: {} } },
-  { name: 'read_document', description: '열린 문서의 칸 지도(T·P id와 지금 글), 본문 구조(B id, 단계), 사람이 고친 칸. 고치기 전과 사람이 손댔을 것 같을 때 읽는다.', inputSchema: { type: 'object', properties: {} } },
-  { name: 'edit_document', description: '열린 문서를 고친다. 사람이 보는 앞에서 바로 반영되고, AI 패널에 「되돌리기」가 남는다. 사람이 고친 칸은 건너뛴다(force:true는 사람이 허락했을 때만).\n' + OPS_HELP,
+  { name: 'read_document', description: '화면을 캡처하지 않고 읽는다 — 열린 문서의 칸 지도(T·P id와 지금 글), 본문 구조(B id, 단계), 사람이 고친 칸. 고치기 전과 사람이 손댔을 것 같을 때 읽는다.', inputSchema: { type: 'object', properties: {} } },
+  { name: 'edit_document', description: '열린 문서를 고친다(타자·클릭 같은 화면 조작 대신 이 도구로). 사람이 보는 앞에서 바로 반영되고, AI 패널에 「되돌리기」가 남는다. 사람이 고친 칸은 건너뛴다(force:true는 사람이 허락했을 때만).\n' + OPS_HELP,
     inputSchema: { type: 'object', properties: {
       ops: { type: 'array', items: { type: 'object' }, description: '고칠 내용' },
       note: { type: 'string', description: '사람에게 보일 한 줄 요약(예: "참석자 명단 채움")' },
@@ -82,7 +85,7 @@ async function onMessage(m) {
       protocolVersion: (params && params.protocolVersion) || '2025-06-18',
       capabilities: { tools: {} },
       serverInfo: { name: 'seoil-office', version: '0.3.0' },
-      instructions: '서일 오피스(한글 hwp 편집기)를 사람이 보는 앞에서 다룬다. 순서: get_guide(처음 한 번) → open_document/new_document → read_document → edit_document(조금씩, note에 한 줄 요약) → 사람이 확인하면 save_document. 사람이 고친 칸은 존중하고, 덮어쓰기 전에 물어본다. 저장은 사람이 원할 때만. 받은 양식 원본에 덮어쓰지 말고 새 이름(path)으로 저장하거나, 지난 문서를 고쳐 쓸 때는 rewrite_copy로 사본을 만든다.',
+      instructions: NO_SCREEN + ' 화면 조작은 이 도구로 안 되는 일일 때만, 사람에게 먼저 묻고 쓴다. 서일 오피스(한글 hwp 편집기)를 사람이 보는 앞에서 다룬다. 순서: get_guide(처음 한 번) → open_document/new_document → read_document → edit_document(조금씩, note에 한 줄 요약) → 사람이 확인하면 save_document. 사람이 고친 칸은 존중하고, 덮어쓰기 전에 물어본다. 저장은 사람이 원할 때만. 받은 양식 원본에 덮어쓰지 말고 새 이름(path)으로 저장하거나, 지난 문서를 고쳐 쓸 때는 rewrite_copy로 사본을 만든다.',
     } });
   }
   if (method === 'notifications/initialized' || (method && method.startsWith('notifications/'))) return;
