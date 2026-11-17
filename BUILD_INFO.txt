@@ -1,0 +1,4 @@
+75ea94684a0811c3c6b4050bb8bab22169df30fe
+seoil office: v0.4.30 build 118 73ad544
+openoffice ref: main
+built: 2026-11-17T00:11:22Z
