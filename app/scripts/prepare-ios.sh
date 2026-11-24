@@ -11,6 +11,15 @@ test -f www/index.html
 if [ ! -d ios ]; then npx cap add ios --packagemanager CocoaPods; fi
 npx cap sync ios
 
+# 앱 아이콘: web/brand/icon-1024.png (문서 모양 마크, 알파 없는 1024 사각) → AppIcon 한 장짜리 세트에 덮어쓴다 (0.4.31)
+ICONSET=ios/App/App/Assets.xcassets/AppIcon.appiconset
+if [ -f ../web/brand/icon-1024.png ] && [ -f "$ICONSET/AppIcon-512@2x.png" ]; then
+  cp ../web/brand/icon-1024.png "$ICONSET/AppIcon-512@2x.png"
+  echo "app icon: replaced"
+else
+  echo "app icon: skipped (iconset layout differs)"; ls "$ICONSET" 2>/dev/null || true
+fi
+
 # 최소 iOS 15.0 (App Store Connect ITMS-90068: 2027-04부터 15.0 이상만 업로드 가능)
 sed -i '' -E 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/App/App.xcodeproj/project.pbxproj
 sed -i '' -E "s/^platform :ios, '[0-9.]+'/platform :ios, '15.0'/" ios/App/Podfile

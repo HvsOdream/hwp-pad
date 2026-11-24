@@ -21,7 +21,7 @@
     '#seoil-home.open{display:block}',
     '#seoil-home *{box-sizing:border-box}',
     '#seoil-home .top{display:flex;align-items:center;gap:12px;padding:16px 28px}',
-    '#seoil-home .logo{width:28px;height:28px;border-radius:7px;background:#1C1F23;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}',
+    '#seoil-home .logo{width:28px;height:28px;display:flex;flex:none}#seoil-home .logo svg{width:28px;height:28px;display:block}',
     '#seoil-home .me{font:inherit;font-size:13px;height:40px;padding:0 12px;border:0;background:#EEF2FD;border-radius:10px;color:#2F5BEA;cursor:pointer}',
     '#seoil-home .back{font:inherit;font-size:13px;height:40px;padding:0 12px;border:1px solid #D5D9DF;background:#fff;border-radius:10px;color:#1C1F23;cursor:pointer}',
     '#seoil-home main{max-width:1080px;margin:0 auto;padding:40px 24px 56px;display:flex;flex-direction:column;gap:28px}',
@@ -657,7 +657,7 @@
     ]);
     ui.root = el('div', { id: 'seoil-home', role: 'dialog', 'aria-label': '서일 오피스 홈' }, [
       el('div', { class: 'top' }, [
-        el('span', { class: 'logo', text: '서일' }), el('b', { style: 'font-size:16px', text: '서일 오피스' }), el('span', { style: 'flex:1' }),
+        el('span', { class: 'logo', role: 'img', 'aria-label': '서일 오피스', html: '<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="114" fill="#2F5BE7"/><path d="M132 82H318L392 156V408a24 24 0 0 1-24 24H132a24 24 0 0 1-24-24V106a24 24 0 0 1 24-24z" fill="#fff"/><path d="M318 82L392 156H336a18 18 0 0 1-18-18z" fill="#B9C8F6"/><text x="250" y="338" text-anchor="middle" font-family="Noto Sans KR,system-ui,sans-serif" font-weight="900" font-size="128" letter-spacing="-8" fill="#2F5BE7">서일</text></svg>' }), el('b', { style: 'font-size:16px', text: '서일 오피스' }), el('span', { style: 'flex:1' }),
         ui.back,
         el('button', { type: 'button', class: 'me', text: '내 정보', onclick: function () { close(); if (window.SeoilAI) { window.SeoilAI.open(true); if (window.SeoilAI.settings) window.SeoilAI.settings(true); } } }),
       ]),

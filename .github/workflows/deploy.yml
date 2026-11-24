@@ -193,21 +193,12 @@ jobs:
           { cat openoffice/NOTICE; printf '\n\n---\n서일 오피스는 이음오피스(IeumOffice, Apache-2.0)의 HWP 편집기 빌드와 rhwp(MIT)를 바탕으로\n서일대학교가 수정·배포하는 제품입니다. 수정 내용은 저장소 patches/README.md 에 적습니다.\n본 제품은 한글과컴퓨터의 한글 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.\n'; } > site/NOTICE-ieumoffice.txt
           test -s site/LICENSE-rhwp.txt && test -s site/NOTICE-ieumoffice.txt
 
-          # --- icons: 「서일」 두 글자 (나눔고딕 볼드; 없으면 단색 배경만) ---
-          ICON_FONT=/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf
-          make_icon() {
-            local size="$1" out="$2"
-            convert -size "${size}x${size}" xc:"$THEME_COLOR" \
-              -fill white -gravity center \
-              -font "$ICON_FONT" -pointsize "$((size * 40 / 100))" -annotate +0+$((size * 2 / 100)) "$ICON_TEXT" \
-              "$out" 2>/dev/null \
-            || convert -size "${size}x${size}" xc:"$THEME_COLOR" "$out"
-          }
-          make_icon 180 site/icons/apple-touch-icon.png
-          make_icon 192 site/icons/icon-192.png
-          make_icon 512 site/icons/icon-512.png
-          # maskable: 여백 있는 버전
-          convert site/icons/icon-512.png -gravity center -background "$THEME_COLOR" -extent 640x640 -resize 512x512 site/icons/icon-512-maskable.png
+          # --- icons: 문서 모양 마크(파란 바탕, 종이 안에 「서일」) — web/brand/ 의 완성본을 그대로 쓴다 (0.4.31) ---
+          # 원본 web/brand/mark.svg. 192·512는 둥근 모서리(투명), apple-touch·maskable은 꽉 찬 사각.
+          for f in apple-touch-icon.png icon-192.png icon-512.png icon-512-maskable.png; do
+            test -s "web/brand/$f"
+            cp "web/brand/$f" "site/icons/$f"
+          done
 
           # --- manifest ---
           cat > site/manifest.webmanifest <<EOF

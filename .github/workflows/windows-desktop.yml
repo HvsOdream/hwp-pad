@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['desktop/**', '.github/workflows/windows-desktop.yml', 'VERSION']
+    paths: ['desktop/**', '.github/workflows/windows-desktop.yml', 'VERSION', 'web/brand/**']
 
 permissions:
   contents: write
@@ -23,10 +23,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: App icon (from the deployed web icons)
+      - name: App icon (repo web/brand)
         run: |
           mkdir -p build
-          curl -fsSL https://hvsodream.github.io/hwp-pad/icons/icon-512.png -o build/icon.png
+          cp ../web/brand/icon-512.png build/icon.png
           ls -la build
       - name: Version from root VERSION file
         run: |
