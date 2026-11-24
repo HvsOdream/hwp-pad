@@ -21,6 +21,18 @@ const file = process.env.HANCOM_KEYS || join(process.cwd(), 'openoffice/apps/hwp
 if (!existsSync(file)) throw new Error(`nested-table-keys: ${file} 가 없습니다(저장소 루트에서 실행)`)
 
 let src = readFileSync(file, 'utf8')
+
+// 2026-11-24 (0.4.31): 이음이 11/17에 표 안의 표 편집을 직접 구현했다(NESTED_TABLE_EDITS — 크기 조절 키
+// ieum:table-block-resize · table-row-column-resize · table-cell-resize 포함). 그 판에서는 이 패치가 고치던
+// 「표 안의 표는 아직 크기를 바꿀 수 없습니다」 거절 코드가 없으므로 건너뛰고 이음 구현을 쓴다.
+if (
+  src.includes('NESTED_TABLE_EDITS') &&
+  src.includes("'ieum:table-block-resize'") &&
+  !src.includes('표 안의 표는 아직 크기를 바꿀 수 없습니다')
+) {
+  console.log('[hwp-pad] nested-table-keys: 이음이 중첩 표 크기 조절을 자체 지원 — 건너뜀')
+  process.exit(0)
+}
 function rep(find, replace) {
   const n = src.split(find).length - 1
   if (n !== 1) throw new Error(`${file}: expected exactly 1 match, found ${n}:\n${find}`)
