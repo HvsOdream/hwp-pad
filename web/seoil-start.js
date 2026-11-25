@@ -372,7 +372,7 @@
       }).catch(function (e) { note.textContent = '실패: ' + (e && e.message || e); });
     }
     var how = el('div', { class: 'tips', style: 'display:none' });
-    how.innerHTML = '<b>복사한 주소를 내 Claude에 한 번만 등록합니다</b><br>· Claude 설정 › 커넥터 › 「맞춤 커넥터 추가」 → 이름 <b>서일 오피스</b>, 주소 칸에 붙여 넣기.<br>· 계정에 등록되므로 다른 PC·폰의 Claude에서도 그대로 보입니다. PC가 바뀌어도 다시 등록하지 않습니다(그 PC의 설치판에 로그인만).<br>· ChatGPT 등 MCP 커넥터를 받는 다른 AI에도 같은 주소를 씁니다.<br>· 이 주소를 아는 쪽이 내 문서를 다룰 수 있습니다. 비밀번호처럼 다루고, 새어 나갔으면 「주소 새로 만들기」.';
+    how.innerHTML = '<b>복사한 주소를 내 Claude에 한 번만 등록합니다</b><br>· Claude의 <b>사용자 지정(Customize) › 커넥터</b>에서 「+」 → 「맞춤 커넥터 추가」 → 이름 <b>서일 오피스</b>, 주소 칸에 붙여 넣기. 설정 메뉴가 아니라 사용자 지정 메뉴에 있습니다(바로 가기: claude.ai/customize/connectors). 듀얼플래너 커넥터가 보이는 그 목록입니다.<br>· 계정에 등록되므로 다른 PC·폰의 Claude에서도 그대로 보입니다. PC가 바뀌어도 다시 등록하지 않습니다(그 PC의 설치판에 로그인만).<br>· ChatGPT 등 MCP 커넥터를 받는 다른 AI에도 같은 주소를 씁니다.<br>· 이 주소를 아는 쪽이 내 문서를 다룰 수 있습니다. 비밀번호처럼 다루고, 새어 나갔으면 「주소 새로 만들기」.';
     var relayCache = null; // { key, url }
     function relayGet(reset) {
       return window.SeoilAI.relay(reset).then(function (r) { relayCache = r; return D.relayStart(r.key).then(function () { return r; }); });
