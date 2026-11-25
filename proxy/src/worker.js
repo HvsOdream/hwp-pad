@@ -7,6 +7,9 @@
 //   POST /v1/password   비밀번호 바꾸기(관리자가 준 임시 비밀번호 → 내 것)
 //   POST /v1/messages   앱의 AI 요청(Anthropic Messages 형식 그대로). 세션 또는 머리글 x-seoil-code(예전 코드)
 //   GET  /v1/me         내 이름·상태·이번 달 사용률(%)
+//   GET  /v1/relay      내 AI 연결 주소(로그인 필요) · POST /v1/relay/reset 주소 새로 만들기
+//   POST /u/:key/mcp    연결 주소 — 사용자의 Claude·GPT가 커넥터로 붙는 MCP(Streamable HTTP). 도구 호출은 켜져 있는 설치판으로 넘긴다
+//   GET  /u/:key/app    설치판이 붙는 통로(WebSocket)
 //   GET  /admin         관리 화면(코드 만들기·끄기·사용량) — ADMIN_TOKEN으로 들어감
 //   /admin/api/...      관리 화면이 부르는 API
 //
@@ -15,6 +18,7 @@
 //
 // 바인딩·변수(wrangler.toml / 시크릿)
 //   KV            KV 이름공간 (코드·사용량)
+//   RELAY         Durable Object(Relay) — 연결 주소 하나마다 하나. 설치판 WebSocket을 쥐고 도구 호출을 넘긴다
 //   ANTHROPIC_API_KEY (시크릿)  ADMIN_TOKEN (시크릿)
 //   MODEL         기본 모델. 앱이 보낸 모델이 MODELS에 없으면 이것으로 바꾼다
 //   MODELS        허용 모델(쉼표)
@@ -24,6 +28,8 @@
 //   MONTH_CAP     이 달 전체 토큰 상한(0이면 없음) — 비용 안전장치
 //   ORIGINS       허용 출처(쉼표)
 //   SLLM_URL, SLLM_KEY, SLLM_MODEL   BACKEND=openai일 때
+
+import toolDefs from '../../desktop/tools.js';
 
 const KST = 9 * 3600 * 1000;
 const today = () => new Date(Date.now() + KST).toISOString().slice(0, 10);
@@ -296,9 +302,138 @@ async function admin(req, env, h, path) {
   return fail('없는 주소', 404, h);
 }
 
+// ---------- 내 AI 연결 주소(원격 커넥터) — 2026-11-25 ----------
+// 예전에는 설치판이 PC마다 Claude 데스크톱 설정 파일에 통로를 써넣었다. Claude 버전·설치 방식에 따라 그 파일을 읽지 않아
+// "연결됨"인데 도구가 안 보이는 일이 생겼다. 듀얼플래너처럼 주소 하나를 계정의 커넥터로 등록하는 방식으로 바꾼다.
+//   사용자의 Claude → POST /u/:key/mcp → (Relay) → WebSocket → 켜져 있는 설치판 → 결과가 같은 길로 돌아온다.
+// 주소(key)는 로그인한 사용자마다 하나. 어느 PC든 로그인한 설치판이 같은 주소에 붙는다. 주소를 아는 쪽이 문서를 다룰 수 있으므로 비밀번호처럼 다룬다.
+const MCP_CORS = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET,POST,DELETE,OPTIONS', 'access-control-allow-headers': 'content-type,authorization,mcp-session-id,mcp-protocol-version', 'access-control-expose-headers': 'mcp-session-id' };
+const KEY_RE = /^[A-Za-z0-9_-]{32,64}$/;
+function relayKeyNew() { return hex(crypto.getRandomValues(new Uint8Array(24))); }
+function relayUrl(req, key) { return new URL(req.url).origin + '/u/' + key + '/mcp'; }
+async function relayUser(req, env, h) {
+  const w = await who(req, env, h);
+  if (w.err) return w;
+  if (!w.user) return { err: fail('로그인해 주세요. AI 작성 › 설정에서 가입·로그인할 수 있습니다.', 401, h, 'authentication_error') };
+  if (w.user.status !== 'active' && w.user.status !== 'pending') return { err: fail('사용이 중지된 계정입니다. 관리자에게 물어 주세요.', 403, h, 'permission_error') };
+  return w;
+}
+async function relayGet(req, env, h) {
+  const w = await relayUser(req, env, h);
+  if (w.err) return w.err;
+  let key = await env.KV.get(`relayof:${w.user.email}`);
+  if (!key) { key = relayKeyNew(); await putJ(env, `relay:${key}`, { email: w.user.email, created: new Date().toISOString() }); await env.KV.put(`relayof:${w.user.email}`, key); }
+  return json({ ok: true, key, url: relayUrl(req, key), online: await relayOnline(env, key) }, 200, h);
+}
+async function relayReset(req, env, h) {
+  const w = await relayUser(req, env, h);
+  if (w.err) return w.err;
+  const old = await env.KV.get(`relayof:${w.user.email}`);
+  if (old) { await env.KV.delete(`relay:${old}`); try { await stub(env, old).fetch('https://relay/drop'); } catch (e) {} }
+  const key = relayKeyNew();
+  await putJ(env, `relay:${key}`, { email: w.user.email, created: new Date().toISOString() }); await env.KV.put(`relayof:${w.user.email}`, key);
+  return json({ ok: true, key, url: relayUrl(req, key), online: false }, 200, h);
+}
+function stub(env, key) { return env.RELAY.get(env.RELAY.idFromName(key)); }
+async function relayOnline(env, key) { try { return !!(await (await stub(env, key).fetch('https://relay/status')).json()).online; } catch (e) { return false; } }
+
+const GONE = '이 연결 주소는 더 이상 쓰이지 않습니다(주소를 새로 만들었거나 계정이 없어졌습니다). 아무것도 하지 못했습니다. 서일 오피스 › 「Claude로 작성하기」에서 연결 주소를 다시 복사해 커넥터 주소를 바꿔 달라고 사용자에게 알려 주세요.';
+const OFFLINE = '서일 오피스 설치판이 켜져 있지 않거나 로그인돼 있지 않아 아무것도 하지 못했습니다. 화면 조작으로 대신하지 말고, 사용자에게 PC에서 서일 오피스(윈도우 설치판)를 켜 달라고 말한 뒤 다시 시도하세요.';
+async function mcp(req, env, key) {
+  if (req.method === 'GET') return new Response('Method Not Allowed', { status: 405, headers: MCP_CORS });
+  if (req.method === 'DELETE') return new Response(null, { status: 204, headers: MCP_CORS });
+  if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405, headers: MCP_CORS });
+  let msg; try { msg = await req.json(); } catch (e) { return json({ jsonrpc: '2.0', error: { code: -32700, message: 'parse error' }, id: null }, 400, MCP_CORS); }
+  const batch = Array.isArray(msg) ? msg : [msg], out = [], D = toolDefs.remote;
+  let known; const isKnown = async () => (known === undefined ? (known = !!(await env.KV.get(`relay:${key}`))) : known);
+  for (const m of batch) {
+    if (!m || m.id === undefined) continue; // notifications
+    const reply = (r) => out.push({ jsonrpc: '2.0', id: m.id, result: r });
+    const text = (t, isError) => reply({ content: [{ type: 'text', text: String(t) }], isError: !!isError });
+    try {
+      if (m.method === 'initialize') reply({ protocolVersion: (m.params && m.params.protocolVersion) || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'seoil-office', version: toolDefs.VERSION }, instructions: D.INSTRUCTIONS });
+      else if (m.method === 'ping') reply({});
+      else if (m.method === 'tools/list') reply({ tools: D.TOOLS });
+      else if (m.method === 'tools/call') {
+        const name = m.params && m.params.name, args = (m.params && m.params.arguments) || {};
+        if (!D.TOOLS.some((t) => t.name === name)) { out.push({ jsonrpc: '2.0', id: m.id, error: { code: -32602, message: 'unknown tool' } }); continue; }
+        if (!(await isKnown())) { text(GONE, true); continue; }
+        const r = await stub(env, key).fetch('https://relay/call', { method: 'POST', body: JSON.stringify({ name, args }) });
+        const j = await r.json();
+        if (j.offline) text(OFFLINE, true); else text(j.text, j.isError);
+      } else out.push({ jsonrpc: '2.0', id: m.id, error: { code: -32601, message: 'method not found' } });
+    } catch (e) { out.push({ jsonrpc: '2.0', id: m.id, error: { code: -32000, message: String(e && e.message || e) } }); }
+  }
+  if (!out.length) return new Response(null, { status: 202, headers: MCP_CORS });
+  return json(Array.isArray(msg) ? out : out[0], 200, Object.assign({ 'mcp-session-id': key.slice(0, 8) }, MCP_CORS));
+}
+async function appSocket(req, env, key) {
+  if ((req.headers.get('upgrade') || '').toLowerCase() !== 'websocket') return new Response('WebSocket only', { status: 426 });
+  if (!(await env.KV.get(`relay:${key}`))) return new Response('gone', { status: 410 });
+  return stub(env, key).fetch(new Request('https://relay/app', req));
+}
+
+// 연결 주소 하나마다 하나. 설치판 WebSocket을 쥐고(여러 PC가 붙으면 마지막에 쓴 창으로), 도구 호출을 넘기고 답을 기다린다.
+// WebSocket은 잠들 수 있는(hibernation) 방식 — 쉬는 동안 비용이 들지 않는다. 도구 호출을 기다리는 동안에는 깨어 있다.
+const CALL_TIMEOUT = 170000;
+export class Relay {
+  constructor(state) {
+    this.state = state; this.pending = new Map();
+    state.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
+  }
+  socket() { // 가장 최근에 사람이 쓴 창
+    let best = null, bt = -1;
+    for (const ws of this.state.getWebSockets()) { const a = ws.deserializeAttachment() || {}; if ((a.t || 0) > bt) { bt = a.t || 0; best = ws; } }
+    return best;
+  }
+  async fetch(req) {
+    const path = new URL(req.url).pathname;
+    if (path === '/app') {
+      const pair = new WebSocketPair();
+      this.state.acceptWebSocket(pair[1]);
+      pair[1].serializeAttachment({ t: Date.now() });
+      return new Response(null, { status: 101, webSocket: pair[0] });
+    }
+    if (path === '/status') return Response.json({ online: this.state.getWebSockets().length > 0 });
+    if (path === '/drop') { for (const ws of this.state.getWebSockets()) { try { ws.close(4001, 'reset'); } catch (e) {} } return Response.json({ ok: true }); }
+    if (path === '/call') {
+      const ws = this.socket();
+      if (!ws) return Response.json({ offline: true });
+      const b = await req.json(), id = crypto.randomUUID();
+      const p = new Promise((resolve) => {
+        const timer = setTimeout(() => { this.pending.delete(id); resolve({ text: '서일 오피스가 제때 답하지 않았습니다. 창이 떠 있는지 사용자에게 확인해 주세요.', isError: true }); }, CALL_TIMEOUT);
+        this.pending.set(id, { resolve, timer, ws });
+      });
+      try { ws.send(JSON.stringify({ id, name: b.name, args: b.args || {} })); } catch (e) { const q = this.pending.get(id); if (q) { clearTimeout(q.timer); this.pending.delete(id); } return Response.json({ offline: true }); }
+      return Response.json(await p);
+    }
+    return new Response('not found', { status: 404 });
+  }
+  webSocketMessage(ws, data) {
+    let m; try { m = JSON.parse(typeof data === 'string' ? data : new TextDecoder().decode(data)); } catch (e) { return; }
+    if (m && m.t === 'active') { ws.serializeAttachment({ t: Date.now() }); return; }
+    const q = m && m.id && this.pending.get(m.id);
+    if (!q) return;
+    clearTimeout(q.timer); this.pending.delete(m.id);
+    q.resolve({ text: m.text == null ? '' : String(m.text), isError: !!m.isError });
+  }
+  drop(ws) { // 답을 기다리던 호출이 있으면 바로 알려 준다
+    for (const [id, q] of this.pending) if (q.ws === ws) { clearTimeout(q.timer); this.pending.delete(id); q.resolve({ text: '서일 오피스와의 연결이 끊겼습니다. 설치판이 켜져 있는지 사용자에게 확인하고 다시 시도하세요.', isError: true }); }
+  }
+  webSocketClose(ws) { this.drop(ws); }
+  webSocketError(ws) { this.drop(ws); }
+}
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url), h = cors(req, env), path = url.pathname.replace(/\/+$/, '') || '/';
+    const um = path.match(/^\/u\/([^/]+)\/(mcp|app)$/);
+    if (um) {
+      if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: MCP_CORS });
+      if (!KEY_RE.test(um[1])) return new Response('not found', { status: 404, headers: MCP_CORS });
+      try { return um[2] === 'mcp' ? await mcp(req, env, um[1]) : await appSocket(req, env, um[1]); }
+      catch (e) { return json({ jsonrpc: '2.0', error: { code: -32000, message: String(e && e.message || e) }, id: null }, 500, MCP_CORS); }
+    }
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: h });
     try {
       if (path === '/v1/messages' && req.method === 'POST') return await messages(req, env, h);
@@ -307,6 +442,8 @@ export default {
       if (path === '/v1/login' && req.method === 'POST') return await login(req, env, h);
       if (path === '/v1/logout' && req.method === 'POST') return await logout(req, env, h);
       if (path === '/v1/password' && req.method === 'POST') return await password(req, env, h);
+      if (path === '/v1/relay' && req.method === 'GET') return await relayGet(req, env, h);
+      if (path === '/v1/relay/reset' && req.method === 'POST') return await relayReset(req, env, h);
       if (path === '/admin' && req.method === 'GET') return new Response(ADMIN_HTML, { headers: { 'content-type': 'text/html; charset=utf-8' } });
       if (path.startsWith('/admin/api/')) return await admin(req, env, h, path);
       if (path === '/') return json({ service: '서일 오피스 AI 중계', ok: true }, 200, h);

@@ -43,6 +43,7 @@ if (!app.requestSingleInstanceLock()) {
     createWindow();
     docArgs(process.argv).forEach(sendOpen);
     startAgent();
+    startRelay();
   });
   app.on('window-all-closed', () => app.quit());
   app.on('will-quit', () => { try { fs.unlinkSync(agentFile()); } catch (e) {} });
@@ -66,6 +67,7 @@ function createWindow() {
     },
   });
   win.maximize();
+  win.on('focus', () => { if (relay) relay.active(); }); // PC가 여럿이면 지금 쓰는 창으로 도구 호출이 오게
 
   // 서일 오피스 주소 밖으로는 창 안에서 이동하지 않고 기본 브라우저로 연다
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -397,4 +399,41 @@ ipcMain.handle('seoil:connect-claude', async (e) => { sender(e); return setClaud
 ipcMain.handle('seoil:disconnect-claude', async (e) => { sender(e); return setClaude(false); });
 
 // 시험용(SEOIL_TEST): 통로 처리부를 바깥에서 불러 쓸 수 있게
-if (process.env.SEOIL_TEST) module.exports = { runTool, startAgent, agentFile, __setWin: (w) => { win = w; pageReady = true; } };
+// ---------------------------------------------------------------------------
+// 내 AI 연결 주소(원격 커넥터) — 2026-11-25
+// 위의 「Claude에 연결」은 PC마다 Claude 데스크톱 설정 파일을 고친다. Claude 버전·설치 방식에 따라 그 파일을 읽지 않아
+// "연결됨"인데 도구가 안 보이는 PC가 나왔다. 그래서 듀얼플래너처럼 주소 하나를 Claude 계정의 커넥터로 등록하는 방식을 기본으로 한다.
+// 설치판은 중계 서버에 밖으로 연결만 걸어 두고(relay.js), 주소(key)는 웹이 로그인한 계정으로 받아서 넘겨준다.
+// key는 사용자 폴더의 relay.json에 적어 두어, 다음에 켤 때 웹이 뜨기 전에도 바로 붙는다.
+const { createRelay } = require('./relay.js');
+const RELAY_BASE = process.env.SEOIL_RELAY || 'https://seoil-ai.withsky0.workers.dev';
+const RELAY_KEY = /^[A-Za-z0-9_-]{32,64}$/;
+let relay = null;
+function relayFile() { return path.join(app.getPath('userData'), 'relay.json'); }
+function relaySaved() { try { const k = JSON.parse(fs.readFileSync(relayFile(), 'utf8')).key; return RELAY_KEY.test(k) ? k : null; } catch (e) { return null; } }
+function relayInfo() { return { on: !!(relay && relay.key()), state: relay ? relay.state() : 'off' }; }
+function startRelay() {
+  relay = createRelay({
+    base: RELAY_BASE, runTool,
+    onState: (st) => { if (win && !win.isDestroyed()) win.webContents.send('seoil:relay-state', st); },
+  });
+  const k = relaySaved();
+  if (k) relay.start(k);
+}
+ipcMain.handle('seoil:relay-status', (e) => { sender(e); return relayInfo(); });
+ipcMain.handle('seoil:relay-start', (e, key) => {
+  sender(e);
+  if (!RELAY_KEY.test(String(key || ''))) throw new Error('연결 주소가 올바르지 않습니다');
+  fs.mkdirSync(app.getPath('userData'), { recursive: true });
+  fs.writeFileSync(relayFile(), JSON.stringify({ key }), { mode: 0o600 });
+  relay.start(key);
+  return relayInfo();
+});
+ipcMain.handle('seoil:relay-stop', (e) => {
+  sender(e);
+  try { fs.unlinkSync(relayFile()); } catch (x) {}
+  relay.stop();
+  return relayInfo();
+});
+
+if (process.env.SEOIL_TEST) module.exports = { runTool, startAgent, startRelay, agentFile, __setWin: (w) => { win = w; pageReady = true; } };

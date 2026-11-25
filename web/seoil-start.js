@@ -360,7 +360,8 @@
     var D = window.seoilDesktop, g = ui.guide, note = el('div', { style: 'font-size:13px;color:#3D434B;min-height:18px', role: 'status' });
     g.innerHTML = '';
     function step(n, title, dim) { var st = el('div', { class: 'st' }); return { st: st, box: el('div', { class: 'step' + (dim ? ' dim' : '') }, [el('small', { text: n + '단계' }), el('b', { text: title }), st]) }; }
-    var s1 = step(1, '서일 오피스 설치판'), s2 = step(2, 'Claude 데스크톱', !D), s3 = step(3, '연결', !D);
+    var NEW = !!(D && D.relayStart); // 0.4.32~ 설치판: 연결 주소(원격 커넥터) 방식
+    var s1 = step(1, '서일 오피스 설치판'), s2 = step(2, NEW || !D ? '로그인' : 'Claude 데스크톱', !D), s3 = step(3, NEW || !D ? '연결 주소' : '연결', !D);
     if (D) s1.st.textContent = '✓ 지금 설치판에서 보고 있습니다';
     else { s1.st.appendChild(el('span', { text: '지금은 웹입니다. 윈도우 설치판이 필요합니다.' })); s1.st.appendChild(el('a', { class: 'gbtn pri', href: DESKTOP_URL, target: '_blank', rel: 'noopener', text: '설치판 받기' })); }
     function run(fn) {
@@ -370,10 +371,65 @@
         status();
       }).catch(function (e) { note.textContent = '실패: ' + (e && e.message || e); });
     }
+    var how = el('div', { class: 'tips', style: 'display:none' });
+    how.innerHTML = '<b>복사한 주소를 내 Claude에 한 번만 등록합니다</b><br>· Claude 설정 › 커넥터 › 「맞춤 커넥터 추가」 → 이름 <b>서일 오피스</b>, 주소 칸에 붙여 넣기.<br>· 계정에 등록되므로 다른 PC·폰의 Claude에서도 그대로 보입니다. PC가 바뀌어도 다시 등록하지 않습니다(그 PC의 설치판에 로그인만).<br>· ChatGPT 등 MCP 커넥터를 받는 다른 AI에도 같은 주소를 씁니다.<br>· 이 주소를 아는 쪽이 내 문서를 다룰 수 있습니다. 비밀번호처럼 다루고, 새어 나갔으면 「주소 새로 만들기」.';
+    var relayCache = null; // { key, url }
+    function relayGet(reset) {
+      return window.SeoilAI.relay(reset).then(function (r) { relayCache = r; return D.relayStart(r.key).then(function () { return r; }); });
+    }
+    function relayStatus() {
+      s2.st.innerHTML = ''; s3.st.innerHTML = ''; how.style.display = 'none';
+      var A = window.SeoilAI;
+      if (!A || !A.signedIn || !A.signedIn()) {
+        s2.st.appendChild(el('span', { text: '학교 이메일로 가입·로그인합니다.' }));
+        s2.st.appendChild(el('button', { type: 'button', class: 'gbtn pri', text: '로그인', onclick: function () { close(); if (A) { A.open(true); if (A.settings) A.settings(true); } } }));
+        s3.box.classList.add('dim'); s3.st.textContent = '로그인하면 내 연결 주소가 만들어집니다';
+        return;
+      }
+      s2.st.textContent = '✓ 로그인됨'; s3.box.classList.remove('dim'); how.style.display = '';
+      var dot = el('span', { text: '확인 중…' });
+      var cp = el('button', { type: 'button', class: 'gbtn pri', text: '연결 주소 복사' });
+      cp.addEventListener('click', function () {
+        note.textContent = '';
+        (relayCache ? D.relayStart(relayCache.key).then(function () { return relayCache; }) : relayGet(false)).then(function (r) {
+          return navigator.clipboard.writeText(r.url).then(function () { cp.textContent = '복사됨'; setTimeout(function () { cp.textContent = '연결 주소 복사'; }, 1500); note.textContent = '주소를 복사했습니다. 아래 안내대로 Claude에 한 번만 등록하세요.'; paint(); });
+        }).catch(function (e) { note.textContent = '실패: ' + (e && e.message || e); });
+      });
+      s3.st.appendChild(dot); s3.st.appendChild(cp);
+      var more = el('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' });
+      s3.st.appendChild(more);
+      function paint() {
+        D.relayStatus().then(function (st) {
+          dot.textContent = st.state === 'online' ? '● 이 PC 연결됨' : st.state === 'connecting' ? '○ 연결하는 중…' : '○ 이 PC는 아직 안 붙음';
+          more.innerHTML = '';
+          if (st.on) {
+            more.appendChild(el('button', { type: 'button', class: 'gbtn', text: '이 PC 끊기', onclick: function () { D.relayStop().then(paint); } }));
+            more.appendChild(el('button', { type: 'button', class: 'gbtn', text: '주소 새로 만들기', onclick: function () {
+              if (!window.confirm('주소를 새로 만들면 지금 주소는 바로 못 쓰게 됩니다.\nClaude에 등록한 커넥터 주소도 새 주소로 바꿔야 합니다. 계속할까요?')) return;
+              relayGet(true).then(function () { note.textContent = '새 주소를 만들었습니다. 「연결 주소 복사」로 복사해 커넥터 주소를 바꿔 주세요.'; paint(); }).catch(function (e) { note.textContent = '실패: ' + (e && e.message || e); });
+            } }));
+          }
+        }).catch(function () { dot.textContent = ''; });
+      }
+      paint();
+      if (D.onRelayState && !drawGuide.__hooked) { drawGuide.__hooked = true; D.onRelayState(function () { if (ui.guide && ui.guide.style.display !== 'none') drawGuide(); }); }
+      // 예전 방식(이 PC의 Claude 데스크톱 설정 파일) 연결이 남아 있으면 도구가 두 벌로 보인다 — 끊으라고 알려 준다
+      if (D.claudeStatus) D.claudeStatus().then(function (s) {
+        if (!s.connected) return;
+        var old = el('div', { style: 'font-size:13px;color:#8A4B00;display:flex;gap:8px;align-items:center;flex-wrap:wrap' }, [
+          el('span', { text: '이 PC에 예전 방식 연결이 남아 있습니다. 연결 주소를 등록했으면 끊어 두세요(도구가 두 벌로 보입니다).' }),
+          el('button', { type: 'button', class: 'gbtn', text: '예전 연결 끊기', onclick: function () { run(D.disconnectClaude); } }),
+        ]);
+        note.parentNode.insertBefore(old, note.nextSibling);
+      }).catch(function () {});
+    }
     function status() {
+      if (NEW) return relayStatus();
       s2.st.innerHTML = ''; s3.st.innerHTML = '';
-      if (!D) { s2.st.textContent = '설치판에서 확인합니다'; s3.st.textContent = '설치판에서 「연결」을 누릅니다'; return; }
-      if (!D.claudeStatus) { // 예전 설치판: 상태를 모른다
+      if (!D) { s2.st.textContent = '설치판에서 학교 이메일로 로그인합니다'; s3.st.textContent = '설치판에서 「연결 주소 복사」를 누릅니다'; return; }
+      // 예전 설치판(~0.4.31): PC의 Claude 데스크톱 설정 파일을 고치는 방식. 새 설치판을 권한다.
+      note.innerHTML = ''; note.appendChild(el('span', { text: '설치판이 예전 버전입니다. 새 설치판은 주소 하나만 Claude에 등록하면 어느 PC에서나 됩니다. ' })); note.appendChild(el('a', { class: 'gbtn pri', href: DESKTOP_URL, target: '_blank', rel: 'noopener', text: '새 설치판 받기' }));
+      if (!D.claudeStatus) { // 상태를 모른다
         s2.st.textContent = 'Claude 데스크톱이 깔려 있어야 합니다';
         if (D.connectClaude) s3.st.appendChild(el('button', { type: 'button', class: 'gbtn pri', text: '연결', onclick: function () { run(D.connectClaude); } }));
         return;
@@ -399,12 +455,13 @@
     [
       el('div', { style: 'display:flex;align-items:center;gap:12px;flex-wrap:wrap' }, [el('button', { type: 'button', class: 'gbtn', text: '← 홈', onclick: closeGuide }), el('h1', { text: 'Claude로 작성하기' })]),
       el('div', { class: 'need' }, [
-        el('span', { html: '내 Claude가 이 PC의 파일을 읽고 서일 오피스에 직접 씁니다. <b>Claude 구독</b>과 <b>윈도우 설치판</b>이 필요합니다.' }),
+        el('span', { html: '내 Claude가 서일 오피스에 직접 씁니다. <b>Claude 구독</b>과 <b>윈도우 설치판</b>이 필요하고, 쓰는 동안 설치판이 켜져 있어야 합니다.' }),
         el('button', { type: 'button', class: 'gbtn', text: '없으면 → 양식 채우기(학교 AI)', onclick: function () { closeGuide(); pickForm(); } }),
       ]),
       el('h2', { text: '연결 — 처음 한 번' }),
       el('div', { class: 'steps' }, [s1.box, s2.box, s3.box]),
       note,
+      how,
       el('h2', { text: '이렇게 시키세요 — Claude 창에 그대로 붙여 넣기' }),
       el('div', { class: 'ex' }, EXAMPLES.map(function (x) {
         var b = el('button', { type: 'button', class: 'gbtn', text: '복사', 'aria-label': x[0] + ' 예시 복사' });
@@ -755,6 +812,18 @@
   window.addEventListener('keydown', function (e) {
     if (e.key === 'F4' && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && !isOpen()) { e.preventDefault(); e.stopPropagation(); closeDoc(); }
   }, true);
+  // 내 AI 연결 주소: 이 PC를 붙여 둔 적이 있으면, 켤 때 로그인 계정의 지금 주소로 맞춘다(다른 PC에서 주소를 새로 만들었을 수 있다)
+  (function relaySync() {
+    var D = window.seoilDesktop;
+    if (!D || !D.relayStart) return;
+    function sync(st) {
+      var A = window.SeoilAI;
+      if (!A || !A.signedIn || !A.signedIn()) return;
+      if (st.on || st.state === 'gone') A.relay(false).then(function (r) { return D.relayStart(r.key); }).catch(function () {});
+    }
+    setTimeout(function () { D.relayStatus().then(sync).catch(function () {}); }, 3000);
+    if (D.onRelayState) D.onRelayState(function (state) { if (state === 'gone') sync({ state: 'gone' }); });
+  })();
   window.SeoilStart = { open: open, close: close, closeDoc: closeDoc, saveAndClose: saveAndClose, pickForm: pickForm, openForm: openForm, newDoc: newDoc, newReport: newReport, forkCopy: forkCopy };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();

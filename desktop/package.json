@@ -10,6 +10,9 @@
     "start": "electron .",
     "dist": "electron-builder --win nsis --x64 --publish never"
   },
+  "dependencies": {
+    "ws": "8.18.0"
+  },
   "devDependencies": {
     "electron": "33.2.1",
     "electron-builder": "25.1.8"
@@ -20,8 +23,8 @@
     "executableName": "SeoilOffice",
     "artifactName": "SeoilOffice-Setup-${version}.${ext}",
     "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "preload.js", "mcp.js", "package.json"],
-    "asarUnpack": ["mcp.js"],
+    "files": ["main.js", "preload.js", "mcp.js", "tools.js", "relay.js", "package.json"],
+    "asarUnpack": ["mcp.js", "tools.js"],
     "win": { "target": ["nsis"], "icon": "build/icon.png" },
     "nsis": {
       "oneClick": false,

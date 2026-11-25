@@ -356,7 +356,8 @@
 
     // 3) 설치판: 내 Claude(데스크톱·Claude Code)가 서일 오피스를 다루게
     var D = window.seoilDesktop;
-    if (D && D.connectClaude) ui.set.appendChild(claudeCard(D));
+    // 새 설치판(0.4.32~)은 연결 주소 방식 — 홈 › 「Claude로 작성하기」에서 한다. 이 카드(PC의 Claude 설정 파일을 고치는 예전 방식)는 예전 설치판에만 보인다.
+    if (D && D.connectClaude && !D.relayStart) ui.set.appendChild(claudeCard(D));
     if (!isDev()) return;
     var key = el('input', { type: 'password', placeholder: 'sk-ant-…', autocomplete: 'off' });
     var model = el('input', { type: 'text', value: ls(LS_MODEL) || DEFAULT_MODEL });
@@ -397,7 +398,7 @@
       } })])]);
       body.push(el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' }, [
         el('button', { class: 'chip', text: '비밀번호 바꾸기', onclick: function () { pwBox.style.display = pwBox.style.display === 'none' ? '' : 'none'; } }),
-        el('button', { class: 'chip', text: '로그아웃', onclick: function () { post('/v1/logout').catch(function () {}).then(function () { ls(LS_TOKEN, null); meCache = null; drawSettings(); }); } }),
+        el('button', { class: 'chip', text: '로그아웃', onclick: function () { post('/v1/logout').catch(function () {}).then(function () { ls(LS_TOKEN, null); meCache = null; try { var D = window.seoilDesktop; if (D && D.relayStop) D.relayStop(); } catch (e) {} drawSettings(); }); } }),
       ]), pwBox, msg);
       fetchMe().then(function (j) {
         sum.textContent = meLine(j);
@@ -933,6 +934,12 @@
     return new Promise(function (res) { setTimeout(function () { res(r); }, 500); });
   }
 
-  window.SeoilAI = { toggle: toggle, open: openPanel, reset: reset, send: send, addFiles: addFiles, refresh: refreshForm, rewrite: rewrite, reformatAll: reformatAll, applyOps: applyOps, state: S, system: SYSTEM, settings: function (on) { if (ui.set) setOpen(on); } };
+  window.SeoilAI = { toggle: toggle, open: openPanel, reset: reset, send: send, addFiles: addFiles, refresh: refreshForm, rewrite: rewrite, reformatAll: reformatAll, applyOps: applyOps, state: S, system: SYSTEM, settings: function (on) { if (ui.set) setOpen(on); },
+    // 내 AI 연결 주소(원격 커넥터) — 로그인한 계정의 주소를 중계 서버에서 받는다. 내 키로 쓰는 중이어도 주소는 늘 학교 서버 것
+    signedIn: function () { return !!ls(LS_TOKEN); },
+    relay: function (reset) {
+      return fetch(SCHOOL_URL.replace(/\/v1\/messages$/, reset ? '/v1/relay/reset' : '/v1/relay'), { method: reset ? 'POST' : 'GET', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + ls(LS_TOKEN) } })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j && j.error && j.error.message) || ('HTTP ' + r.status)); return j; }); });
+    } };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();

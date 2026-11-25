@@ -12,6 +12,11 @@ contextBridge.exposeInMainWorld('seoilDesktop', {
   disconnectClaude: () => ipcRenderer.invoke('seoil:disconnect-claude'),
   claudeStatus: () => ipcRenderer.invoke('seoil:claude-status'),
   copyClaudeCode: () => ipcRenderer.invoke('seoil:claude-code-cmd'),
+  // 내 AI 연결 주소(원격 커넥터): 웹이 로그인한 계정으로 받은 주소 key를 넘기면 설치판이 중계 서버에 붙는다
+  relayStatus: () => ipcRenderer.invoke('seoil:relay-status'),
+  relayStart: (key) => ipcRenderer.invoke('seoil:relay-start', key),
+  relayStop: () => ipcRenderer.invoke('seoil:relay-stop'),
+  onRelayState: (cb) => ipcRenderer.on('seoil:relay-state', (_e, st) => cb(st)),
   isDesktop: true,
 });
 

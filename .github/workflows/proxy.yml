@@ -8,7 +8,7 @@ name: Deploy AI proxy
 on:
   push:
     branches: [main]
-    paths: ['proxy/**', '.github/workflows/proxy.yml']
+    paths: ['proxy/**', 'desktop/tools.js', '.github/workflows/proxy.yml']
   workflow_dispatch:
 
 jobs:
