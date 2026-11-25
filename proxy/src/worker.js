@@ -8,7 +8,9 @@
 //   POST /v1/messages   앱의 AI 요청(Anthropic Messages 형식 그대로). 세션 또는 머리글 x-seoil-code(예전 코드)
 //   GET  /v1/me         내 이름·상태·이번 달 사용률(%)
 //   GET  /v1/relay      내 AI 연결 주소(로그인 필요) · POST /v1/relay/reset 주소 새로 만들기
-//   POST /u/:key/mcp    연결 주소 — 사용자의 Claude·GPT가 커넥터로 붙는 MCP(Streamable HTTP). 도구 호출은 켜져 있는 설치판으로 넘긴다
+//   POST /mcp           내 AI 연결(로그인 방식, 2026-11-25) — 모두 같은 주소. Claude가 OAuth로 학교 계정 로그인을 받아 온다
+//   /.well-known/oauth-protected-resource · /.well-known/oauth-authorization-server · /oauth/register · /oauth/authorize · /oauth/token
+//   POST /u/:key/mcp    (예전) 연결 주소 — 사용자의 Claude·GPT가 커넥터로 붙는 MCP(Streamable HTTP). 도구 호출은 켜져 있는 설치판으로 넘긴다
 //   GET  /u/:key/app    설치판이 붙는 통로(WebSocket)
 //   GET  /admin         관리 화면(코드 만들기·끄기·사용량) — ADMIN_TOKEN으로 들어감
 //   /admin/api/...      관리 화면이 부르는 API
@@ -18,6 +20,7 @@
 //
 // 바인딩·변수(wrangler.toml / 시크릿)
 //   KV            KV 이름공간 (코드·사용량)
+//   OAUTH         Durable Object(OAuthStore) — 로그인 연결의 클라이언트·인가 코드·토큰(KV는 지역 간 반영이 늦어 코드 교환에 못 쓴다)
 //   RELAY         Durable Object(Relay) — 연결 주소 하나마다 하나. 설치판 WebSocket을 쥐고 도구 호출을 넘긴다
 //   ANTHROPIC_API_KEY (시크릿)  ADMIN_TOKEN (시크릿)
 //   MODEL         기본 모델. 앱이 보낸 모델이 MODELS에 없으면 이것으로 바꾼다
@@ -321,9 +324,8 @@ async function relayUser(req, env, h) {
 async function relayGet(req, env, h) {
   const w = await relayUser(req, env, h);
   if (w.err) return w.err;
-  let key = await env.KV.get(`relayof:${w.user.email}`);
-  if (!key) { key = relayKeyNew(); await putJ(env, `relay:${key}`, { email: w.user.email, created: new Date().toISOString() }); await env.KV.put(`relayof:${w.user.email}`, key); }
-  return json({ ok: true, key, url: relayUrl(req, key), online: await relayOnline(env, key) }, 200, h);
+  const key = await relayKeyOf(env, w.user.email);
+  return json({ ok: true, key, url: new URL(req.url).origin + '/mcp', legacyUrl: relayUrl(req, key), online: await relayOnline(env, key) }, 200, h);
 }
 async function relayReset(req, env, h) {
   const w = await relayUser(req, env, h);
@@ -371,6 +373,170 @@ async function appSocket(req, env, key) {
   if ((req.headers.get('upgrade') || '').toLowerCase() !== 'websocket') return new Response('WebSocket only', { status: 426 });
   if (!(await env.KV.get(`relay:${key}`))) return new Response('gone', { status: 410 });
   return stub(env, key).fetch(new Request('https://relay/app', req));
+}
+
+// ---------- 내 AI 연결: 로그인 방식(OAuth 2.1) — 2026-11-25 ----------
+// 주소에 열쇠를 넣는 방식(/u/:key/mcp)은 사람마다 비밀 주소를 복사해 옮겨야 하고, 주소가 새면 문서가 열린다.
+// 여기서는 모두 같은 주소(/mcp)를 쓰고, Claude가 처음 연결할 때 이 서버의 로그인 창(학교 계정)을 띄운다.
+//   Claude → POST /mcp (토큰 없음) → 401 + 메타데이터 위치 → /oauth/register(DCR) → /oauth/authorize(로그인) → /oauth/token → Bearer 토큰으로 /mcp
+// Claude 문서 기준: 401이어야 로그인이 시작되고, resource는 사용자가 넣는 주소와 글자 그대로 같아야 하며, PKCE S256, 토큰 끝점은 form-urlencoded,
+// 공개 클라이언트(token_endpoint_auth_method none), refresh 토큰은 쓸 때마다 바꾼다. 콜백은 https://claude.ai/api/mcp/auth_callback(+ claude.com), Claude Code는 loopback.
+const ACCESS_TTL = 7 * 86400, REFRESH_TTL = 180 * 86400, CODE_TTL = 300;
+const ostore = (env, body) => env.OAUTH.get(env.OAUTH.idFromName('v1')).fetch('https://oauth/', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.json());
+const rnd = (p) => p + hex(crypto.getRandomValues(new Uint8Array(32)));
+const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const esc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const OA_CORS = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET,POST,OPTIONS', 'access-control-allow-headers': 'content-type,authorization,mcp-protocol-version' };
+const oaJson = (o, st, extra) => json(o, st || 200, Object.assign({ 'cache-control': 'no-store' }, OA_CORS, extra || {}));
+const oaErr = (error, desc, st) => oaJson({ error, error_description: desc }, st || 400);
+function isLoopback(u) { try { const x = new URL(u); return x.protocol === 'http:' && (x.hostname === 'localhost' || x.hostname === '127.0.0.1' || x.hostname === '[::1]'); } catch (e) { return false; } }
+function okRedirect(u) { try { const x = new URL(u); return (x.protocol === 'https:' || isLoopback(u)) && !x.hash; } catch (e) { return false; } }
+// 등록된 주소와 글자 그대로 같아야 한다. loopback(Claude Code)만 포트를 빼고 맞춘다
+function redirectMatches(list, u) {
+  if (!Array.isArray(list)) return false;
+  if (list.includes(u)) return true;
+  if (!isLoopback(u)) return false;
+  const a = new URL(u);
+  return list.some((r) => { if (!isLoopback(r)) return false; const b = new URL(r); return b.hostname === a.hostname && b.pathname === a.pathname; });
+}
+function wellKnown(req, path) {
+  const origin = new URL(req.url).origin;
+  if (path.startsWith('/.well-known/oauth-protected-resource'))
+    return oaJson({ resource: origin + '/mcp', authorization_servers: [origin], bearer_methods_supported: ['header'], resource_name: '서일 오피스' }, 200, { 'cache-control': 'public, max-age=300' });
+  return oaJson({
+    issuer: origin, authorization_endpoint: origin + '/oauth/authorize', token_endpoint: origin + '/oauth/token', registration_endpoint: origin + '/oauth/register',
+    response_types_supported: ['code'], grant_types_supported: ['authorization_code', 'refresh_token'], code_challenge_methods_supported: ['S256'],
+    token_endpoint_auth_methods_supported: ['none'], scopes_supported: ['seoil'],
+  }, 200, { 'cache-control': 'public, max-age=300' });
+}
+async function oaRegister(req, env) {
+  let b; try { b = await req.json(); } catch (e) { return oaErr('invalid_client_metadata', 'JSON이 아닙니다'); }
+  const uris = Array.isArray(b.redirect_uris) ? b.redirect_uris.map(String).slice(0, 10) : [];
+  if (!uris.length || !uris.every(okRedirect)) return oaErr('invalid_redirect_uri', 'redirect_uris는 https 또는 loopback 주소여야 합니다');
+  const client = { client_id: rnd('socl_').slice(0, 45), client_name: String(b.client_name || '').slice(0, 80), redirect_uris: uris,
+    grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], token_endpoint_auth_method: 'none', client_id_issued_at: Math.floor(Date.now() / 1000) };
+  await ostore(env, { op: 'put', k: 'cl:' + client.client_id, v: client, ttl: 400 * 86400 });
+  return oaJson(client, 201);
+}
+function loginPage(q, client, msg) {
+  let host = ''; try { host = new URL(q.redirect_uri).host; } catch (e) {}
+  const hidden = ['response_type', 'client_id', 'redirect_uri', 'state', 'code_challenge', 'code_challenge_method', 'scope', 'resource'].map((k) => `<input type="hidden" name="${k}" value="${esc(q[k] || '')}">`).join('');
+  return new Response(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>서일 오피스 — 내 AI 연결</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#F4F5F7;color:#1C1F23;font:15px/1.6 -apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:20px}
+main{width:100%;max-width:400px;background:#fff;border:1px solid #E3E6EA;border-radius:16px;padding:28px 26px}h1{font-size:20px;margin:0 0 6px}p{margin:0 0 14px;color:#3D434B;font-size:14px}
+.app{background:#F3F6FE;border:1px solid #C9D4F8;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:16px}.app b{color:#1C1F23}
+label{display:block;font-size:13px;color:#5F6670;margin:10px 0 4px}input[type=email],input[type=password]{width:100%;font:inherit;padding:10px 12px;border:1px solid #D5D9DF;border-radius:10px}
+button{width:100%;margin-top:18px;font:inherit;font-weight:600;padding:11px;border:0;border-radius:10px;background:#2F5BEA;color:#fff;cursor:pointer}
+.err{background:#FDECEC;border:1px solid #F3B9B9;color:#8A1C1C;border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:12px}small{display:block;margin-top:14px;color:#6B727C;font-size:12px;line-height:1.6}</style></head>
+<body><main><h1>서일 오피스 — 내 AI 연결</h1><p>서일 오피스 계정(학교 이메일)으로 로그인하면 연결됩니다.</p>
+<div class="app"><b>${esc(client.client_name || 'AI 앱')}</b>이(가) 내 PC의 서일 오피스에 열린 한글 문서를 읽고·고치고·저장할 수 있게 됩니다.<br>돌아갈 곳: <b>${esc(host)}</b></div>
+${msg ? `<div class="err">${esc(msg)}</div>` : ''}
+<form method="post" action="/oauth/authorize">${hidden}
+<label for="e">이메일</label><input id="e" type="email" name="email" autocomplete="username" required autofocus>
+<label for="p">비밀번호</label><input id="p" type="password" name="password" autocomplete="current-password" required>
+<button type="submit">로그인하고 연결</button></form>
+<small>계정이 없으면 서일 오피스 앱 › 설정에서 먼저 가입하세요. 연결을 끊으려면 AI 앱의 커넥터 목록에서 「서일 오피스」를 지우면 됩니다.</small></main></body></html>`,
+    { status: msg ? 400 : 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer' } });
+}
+const plainPage = (t, st) => new Response(`<!doctype html><meta charset="utf-8"><title>서일 오피스</title><body style="font:15px/1.6 sans-serif;padding:40px;max-width:520px;margin:auto"><h3>연결할 수 없습니다</h3><p>${esc(t)}</p>`, { status: st || 400, headers: { 'content-type': 'text/html; charset=utf-8' } });
+async function oaAuthorize(req, env) {
+  const url = new URL(req.url);
+  let q = Object.fromEntries(url.searchParams), form = null;
+  if (req.method === 'POST') { form = Object.fromEntries((await req.formData()).entries()); q = form; }
+  // 클라이언트와 돌아갈 주소가 확인되기 전에는 그 주소로 보내지 않는다(남의 주소로 코드를 흘리지 않게)
+  const client = (await ostore(env, { op: 'get', k: 'cl:' + String(q.client_id || '') })).v;
+  if (!client) return plainPage('알 수 없는 앱입니다. AI 앱에서 커넥터를 지우고 다시 추가해 주세요.');
+  if (!redirectMatches(client.redirect_uris, String(q.redirect_uri || ''))) return plainPage('돌아갈 주소가 등록된 것과 다릅니다.');
+  const back = (params) => { const u = new URL(q.redirect_uri); Object.entries(params).forEach(([k, v]) => { if (v != null && v !== '') u.searchParams.set(k, v); }); return new Response(null, { status: 302, headers: { location: u.toString(), 'cache-control': 'no-store' } }); };
+  if (q.response_type !== 'code') return back({ error: 'unsupported_response_type', state: q.state });
+  if (!q.code_challenge || (q.code_challenge_method || 'plain') !== 'S256') return back({ error: 'invalid_request', error_description: 'PKCE S256 required', state: q.state });
+  if (!form) return loginPage(q, client);
+  const email = normEmail(form.email);
+  const fails = (await ostore(env, { op: 'get', k: 'fail:' + email })).v || 0;
+  if (fails >= 8) return loginPage(q, client, '로그인을 여러 번 틀렸습니다. 10분 뒤에 다시 해 주세요.');
+  const user = await getJ(env, `user:${email}`, null);
+  if (!user || (await hashPw(String(form.password || ''), user.salt)) !== user.pw) {
+    await ostore(env, { op: 'put', k: 'fail:' + email, v: fails + 1, ttl: 600 });
+    return loginPage(q, client, '이메일이나 비밀번호가 맞지 않습니다.');
+  }
+  if (user.status !== 'active' && user.status !== 'pending') return loginPage(q, client, '사용이 중지된 계정입니다. 관리자에게 물어 주세요.');
+  const code = rnd('soc_');
+  await ostore(env, { op: 'put', k: 'cd:' + code, v: { email, client_id: client.client_id, redirect_uri: q.redirect_uri, cc: q.code_challenge }, ttl: CODE_TTL });
+  return back({ code, state: q.state });
+}
+async function issueTokens(env, email, client_id) {
+  const at = rnd('soa_'), rt = rnd('sor_');
+  await ostore(env, { op: 'put', k: 'at:' + at, v: { email, client_id }, ttl: ACCESS_TTL });
+  await ostore(env, { op: 'put', k: 'rt:' + rt, v: { email, client_id }, ttl: REFRESH_TTL });
+  return oaJson({ access_token: at, token_type: 'Bearer', expires_in: ACCESS_TTL, refresh_token: rt, scope: 'seoil' });
+}
+async function oaToken(req, env) {
+  let f; try { f = Object.fromEntries((await req.formData()).entries()); } catch (e) { return oaErr('invalid_request', 'application/x-www-form-urlencoded 로 보내 주세요'); }
+  if (f.grant_type === 'authorization_code') {
+    const c = (await ostore(env, { op: 'take', k: 'cd:' + String(f.code || '') })).v; // 한 번만 쓸 수 있다
+    if (!c) return oaErr('invalid_grant', '코드가 없거나 이미 썼거나 시간이 지났습니다');
+    if (f.client_id && f.client_id !== c.client_id) return oaErr('invalid_grant', 'client_id가 다릅니다');
+    if (f.redirect_uri && f.redirect_uri !== c.redirect_uri) return oaErr('invalid_grant', 'redirect_uri가 다릅니다');
+    const v = String(f.code_verifier || '');
+    if (!v || b64url(await crypto.subtle.digest('SHA-256', enc.encode(v))) !== c.cc) return oaErr('invalid_grant', 'code_verifier가 맞지 않습니다');
+    return issueTokens(env, c.email, c.client_id);
+  }
+  if (f.grant_type === 'refresh_token') {
+    const r = (await ostore(env, { op: 'take', k: 'rt:' + String(f.refresh_token || '') })).v; // 쓸 때마다 새것으로 바꾼다
+    if (!r) return oaErr('invalid_grant', 'refresh 토큰이 없거나 시간이 지났습니다');
+    if (f.client_id && f.client_id !== r.client_id) return oaErr('invalid_grant', 'client_id가 다릅니다');
+    return issueTokens(env, r.email, r.client_id);
+  }
+  return oaErr('unsupported_grant_type', 'authorization_code 또는 refresh_token');
+}
+async function relayKeyOf(env, email) {
+  let key = await env.KV.get(`relayof:${email}`);
+  if (!key) { key = relayKeyNew(); await putJ(env, `relay:${key}`, { email, created: new Date().toISOString() }); await env.KV.put(`relayof:${email}`, key); }
+  return key;
+}
+async function mcpOAuth(req, env) {
+  const origin = new URL(req.url).origin;
+  const need = (extra) => json({ error: 'unauthorized', error_description: '로그인이 필요합니다' }, 401,
+    Object.assign({ 'www-authenticate': `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource/mcp"` + (extra || '') }, MCP_CORS, { 'access-control-expose-headers': 'mcp-session-id, www-authenticate' }));
+  const t = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  if (!t.startsWith('soa_')) return need();
+  const a = (await ostore(env, { op: 'get', k: 'at:' + t })).v;
+  if (!a) return need(', error="invalid_token"');
+  const user = await getJ(env, `user:${a.email}`, null);
+  if (!user || (user.status !== 'active' && user.status !== 'pending')) return need(', error="invalid_token"');
+  return mcp(req, env, await relayKeyOf(env, a.email));
+}
+// 로그인 연결의 클라이언트·인가 코드·토큰 저장소. 인가 코드는 로그인 직후 다른 지역(Anthropic 서버)에서 바로 읽어야 해서 KV(반영이 늦을 수 있음) 대신 여기에 둔다.
+export class OAuthStore {
+  constructor(state) { this.s = state.storage; }
+  async fetch(req) {
+    const { op, k, v, ttl } = await req.json(), now = Date.now();
+    if (op === 'put') {
+      await this.s.put(k, { v, exp: ttl ? now + ttl * 1000 : 0 });
+      if ((await this.s.getAlarm()) == null) await this.s.setAlarm(now + 6 * 3600 * 1000);
+      return Response.json({ ok: true });
+    }
+    if (op === 'get' || op === 'take') {
+      const r = await this.s.get(k);
+      if (r && op === 'take') await this.s.delete(k);
+      return Response.json({ v: r && (!r.exp || r.exp > now) ? r.v : null });
+    }
+    if (op === 'del') { await this.s.delete(k); return Response.json({ ok: true }); }
+    return new Response('bad op', { status: 400 });
+  }
+  async alarm() { // 시간이 지난 것 치우기
+    const now = Date.now(); let cursor, left = false;
+    for (let i = 0; i < 20; i++) {
+      const page = await this.s.list({ limit: 500, startAfter: cursor });
+      if (!page.size) break;
+      const dead = [];
+      for (const [k, r] of page) { cursor = k; if (r && r.exp && r.exp <= now) dead.push(k); }
+      for (let j = 0; j < dead.length; j += 128) await this.s.delete(dead.slice(j, j + 128));
+      if (page.size < 500) break;
+      left = true;
+    }
+    if (left || (await this.s.list({ limit: 1 })).size) await this.s.setAlarm(now + 6 * 3600 * 1000);
+  }
 }
 
 // 연결 주소 하나마다 하나. 설치판 WebSocket을 쥐고(여러 PC가 붙으면 마지막에 쓴 창으로), 도구 호출을 넘기고 답을 기다린다.
@@ -427,6 +593,18 @@ export class Relay {
 export default {
   async fetch(req, env) {
     const url = new URL(req.url), h = cors(req, env), path = url.pathname.replace(/\/+$/, '') || '/';
+    // 로그인 방식(OAuth) 내 AI 연결
+    if (path === '/mcp' || path.startsWith('/.well-known/oauth-') || path === '/.well-known/openid-configuration' || path.startsWith('/oauth/')) {
+      if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: path === '/mcp' ? MCP_CORS : OA_CORS });
+      try {
+        if (path === '/mcp') return await mcpOAuth(req, env);
+        if (path.startsWith('/.well-known/')) return wellKnown(req, path);
+        if (path === '/oauth/register' && req.method === 'POST') return await oaRegister(req, env);
+        if (path === '/oauth/authorize' && (req.method === 'GET' || req.method === 'POST')) return await oaAuthorize(req, env);
+        if (path === '/oauth/token' && req.method === 'POST') return await oaToken(req, env);
+        return oaErr('not_found', '없는 주소', 404);
+      } catch (e) { return oaErr('server_error', String(e && e.message || e), 500); }
+    }
     const um = path.match(/^\/u\/([^/]+)\/(mcp|app)$/);
     if (um) {
       if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: MCP_CORS });

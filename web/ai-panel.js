@@ -293,6 +293,7 @@
   }
   function signedIn(res) {
     ls(LS_TOKEN, res.token); meCache = res.user;
+    try { window.dispatchEvent(new Event('seoil:signedin')); } catch (e) {} // 설치판: 로그인하면 내 AI 연결 통로를 바로 붙인다(seoil-start.js)
     // 내 정보가 비어 있으면 가입 정보로 채운다
     var p = profile(), u = res.user || {};
     if (!p.name && u.name) { p.name = u.name; if (u.org && !p.org) p.org = u.org; if (u.dept && !p.dept) p.dept = u.dept; if (u.email && !p.email) p.email = u.email; ls(LS_PROFILE, JSON.stringify(p)); }

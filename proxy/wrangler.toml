@@ -13,9 +13,17 @@ id = "__KV_ID__"
 name = "RELAY"
 class_name = "Relay"
 
+[[durable_objects.bindings]]
+name = "OAUTH"
+class_name = "OAuthStore"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Relay"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["OAuthStore"]
 
 [vars]
 BACKEND = "anthropic"

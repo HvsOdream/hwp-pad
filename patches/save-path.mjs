@@ -96,6 +96,43 @@ async function hwpPadStartIn(): Promise<any> {
 `
 
 patch(fsa, [
+  // [hwp-pad 2026-11-25] 설치판에서 「다른 이름으로 저장」이 0바이트 파일을 남기던 버그.
+  // 설치판이 연 파일의 핸들은 진짜 FileSystemFileHandle이 아니라 흉내 낸 객체(desktop/preload.js)다. 저장 대화상자가 돌려준
+  // 진짜 핸들의 isSameEntry()에 그것을 넘기면 TypeError가 나고, 대화상자가 이미 만들어 둔 빈 파일만 남은 채 저장이 끝났다.
+  // (.hwp로 연 문서는 Ctrl+S도 .hwpx 「다른 이름으로 저장」으로 가므로 같은 일이 생겼다)
+  [
+    `    const isOriginal = handle === originalHandle
+      || await handle.isSameEntry?.(originalHandle) === true;`,
+    `    let isOriginal = handle === originalHandle;
+    if (!isOriginal) {
+      try { isOriginal = await handle.isSameEntry?.(originalHandle) === true; } catch { isOriginal = false; } // [hwp-pad] 흉내 핸들과는 비교할 수 없다 → 다른 파일로 본다
+    }`,
+  ],
+  // 저장 대화상자 뒤의 검사·쓰기가 실패하면, 대화상자가 방금 만든 빈 파일(0바이트)을 치우고 실패를 알린다
+  [
+    `    await assertValidSaveHandle(
+      handle,
+      expectedSaveExtension(saveFormat),
+      forceSaveAs ? currentHandle : null,
+    );
+    await writeBlobToHandle(handle, blob);
+    return {
+      method: 'save-picker',`,
+    `    try {
+      await assertValidSaveHandle(
+        handle,
+        expectedSaveExtension(saveFormat),
+        forceSaveAs ? currentHandle : null,
+      );
+      await writeBlobToHandle(handle, blob);
+    } catch (error) {
+      // [hwp-pad] 빈 파일을 남기지 않는다
+      try { const left = await handle.getFile(); if (left.size === 0) await (handle as any).remove?.(); } catch { /* 못 치워도 원래 오류를 알린다 */ }
+      throw error;
+    }
+    return {
+      method: 'save-picker',`,
+  ],
   // 열기 대화상자: 같은 id로 폴더를 기억하고, 저장 폴더/문서 폴더에서 시작
   // (rhwp 판마다 types 줄이 달라서 머리 세 줄만 찾고, id·startIn은 any 펼치기로 끼운다)
   [

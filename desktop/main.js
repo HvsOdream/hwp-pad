@@ -30,7 +30,7 @@ function sendOpen(p, w) {
   const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
   opened.set(token, p); w.seoil.path = p;
   const msg = { token, name: path.basename(p), bytes: fs.readFileSync(p) };
-  if (w.seoil.ready) w.webContents.send('seoil:open-file', msg); else w.seoil.pending.push(msg);
+  if (w.seoil.ready) { w.webContents.send('seoil:open-file', msg); w.seoil.sent = Date.now(); } else w.seoil.pending.push(msg);
 }
 function front(w) { if (w.isMinimized()) w.restore(); w.show(); w.focus(); win = w; }
 function pageIn(w, js) { return w.webContents.executeJavaScript(js, true); }
@@ -48,11 +48,23 @@ async function hasDoc(w, p) {
 // 탐색기 더블클릭·「연결 프로그램」·바깥 AI가 파일을 열 때: 이미 열린 창이 있으면 그 창을 앞으로, 빈 창이 있으면 거기에, 아니면 새 창.
 // (2026-11-25 전에는 창이 하나라 두 번째 파일이 첫 문서를 밀어냈다)
 async function openPath(p) {
+  let size = -1; try { size = fs.statSync(p).size; } catch (e) {}
+  if (size === 0) throw new Error('빈 파일(0바이트)이라 열 수 없습니다: ' + p);
   for (const w of wins) if (await hasDoc(w, p)) { front(w); return w; }
   for (const w of wins) if (await isIdle(w)) { sendOpen(p, w); front(w); return w; }
   const w = createWindow(p);
   sendOpen(p, w);
   return w;
+}
+
+// 탐색기에서 넘어온 파일들을 차례로 연다. 못 여는 파일은 이유를 알리고, 창이 하나도 없으면 홈 창을 띄운다.
+async function openAll(docs) {
+  for (const p of docs) {
+    try { await openPath(p); } catch (e) {
+      if (!wins.size) createWindow();
+      dialog.showMessageBox(win, { type: 'warning', title: '서일 오피스', message: '파일을 열지 못했습니다.', detail: String(e && e.message || e), buttons: ['확인'] });
+    }
+  }
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -61,13 +73,13 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', (_e, argv) => {
     const docs = docArgs(argv);
     if (!docs.length) { if (win) front(win); else createWindow(); return; }
-    docs.reduce((q, p) => q.then(() => openPath(p)).catch(() => {}), Promise.resolve());
+    openAll(docs);
   });
   app.whenReady().then(() => {
     Menu.setApplicationMenu(null); // 메뉴 단축키(Ctrl+W·Ctrl+R…)가 한글 단축키를 먹지 않게
     const docs = docArgs(process.argv);
     if (!docs.length) createWindow();
-    else docs.reduce((q, p) => q.then(() => openPath(p)).catch(() => {}), Promise.resolve());
+    else openAll(docs);
     startAgent();
     startRelay();
   });
@@ -107,21 +119,20 @@ function createWindow(file) {
       d.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#F4F5F7;display:flex;align-items:center;justify-content:center;font:15px "Noto Sans KR","Malgun Gothic",sans-serif;color:#5F6670';
       d.textContent = ${JSON.stringify(path.basename(file) + ' 여는 중…')};
       document.documentElement.appendChild(d);
-      setTimeout(function () { d.remove(); }, 25000);
+      setTimeout(function () { d.remove(); }, 32000);
     })()`;
     const uncover = () => { w.seoil.opening = false; if (!w.isDestroyed()) pageIn(w, `(function () { var d = document.getElementById('seoil-opening'); if (d) d.remove(); })()`).catch(() => {}); };
+    // 덮개는 ① 편집기가 그 파일을 띄웠을 때(이름이 바뀜) ② 파일을 넘긴 지 5초가 지났을 때 ③ 30초가 지났을 때 걷는다.
+    // ②가 없으면 열기에 실패한 파일(빈 파일·깨진 파일)의 오류 안내가 덮개에 가려 "여는 중…"만 계속 보인다(2026-11-25 실제로 겪음).
     w.webContents.once('dom-ready', () => {
       pageIn(w, cover).catch(() => {});
-      // 편집기가 그 파일을 띄우면 걷는다(이름이 바뀔 때까지 기다림). 끝내 안 열리면 25초 뒤 저절로 걷힌다.
-      pageIn(w, `(async () => {
-        const name = ${JSON.stringify(path.basename(file))};
-        for (const t0 = Date.now(); Date.now() - t0 < 25000; ) {
-          const ai = window.rhwpStudio && window.rhwpStudio.ai;
-          if (ai && ai.doc && ai.doc() && ai.fileName && ai.fileName() === name) { await new Promise((r) => setTimeout(r, 250)); return true; }
-          await new Promise((r) => setTimeout(r, 100));
-        }
-        return false;
-      })()`).then(uncover, uncover);
+      const t0 = Date.now(), name = JSON.stringify(path.basename(file));
+      const t = setInterval(async () => {
+        if (w.isDestroyed()) return clearInterval(t);
+        let ok = false;
+        try { ok = !!(await pageIn(w, `!!(window.rhwpStudio && window.rhwpStudio.ai && window.rhwpStudio.ai.fileName && window.rhwpStudio.ai.fileName() === ${name})`)); } catch (e) {}
+        if (ok || (w.seoil.sent && Date.now() - w.seoil.sent > 5000) || Date.now() - t0 > 30000) { clearInterval(t); setTimeout(uncover, ok ? 250 : 0); }
+      }, 200);
     });
   }
 
@@ -193,7 +204,7 @@ ipcMain.on('seoil:ready', (e) => {
   const w = ours(e);
   if (!w) return;
   w.seoil.ready = true;
-  while (w.seoil.pending.length) w.webContents.send('seoil:open-file', w.seoil.pending.shift());
+  while (w.seoil.pending.length) { w.webContents.send('seoil:open-file', w.seoil.pending.shift()); w.seoil.sent = Date.now(); }
 });
 
 // 제자리 저장: 이 앱이 연 파일(token)에만 쓴다. 먼저 임시 파일에 쓰고 바꿔 끼워 반쯤 쓴 파일이 남지 않게.
