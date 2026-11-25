@@ -353,10 +353,13 @@
   EXAMPLES.forEach(function (e) { e[1] = '컴퓨터 화면 조작 말고 서일 오피스 연결 도구로 해 줘.\n' + e[1]; });
   function openGuide() {
     if (!ui.guide) { ui.guide = el('main', { class: 'guide', style: 'display:none' }); ui.root.insertBefore(ui.guide, ui.ver); }
-    drawGuide(); ui.main.style.display = 'none'; ui.guide.style.display = ''; ui.root.scrollTop = 0;
+    ui.guideMode = 'guide'; drawGuide(); ui.main.style.display = 'none'; ui.guide.style.display = ''; ui.root.scrollTop = 0;
   }
+  // 홈의 「설정」(2026-11-25): 내 AI 연결은 「Claude로 작성하기」 안이 아니라 여기에 둔다 — 연결은 한 번 해 두는 설정이고, 작성하기는 쓰는 법 안내
+  function openSettings() { openGuide(); ui.guideMode = 'settings'; drawGuide(); }
   function closeGuide() { if (ui.guide) ui.guide.style.display = 'none'; ui.main.style.display = ''; }
   function drawGuide() {
+    var SET = ui.guideMode === 'settings';
     var D = window.seoilDesktop, g = ui.guide, note = el('div', { style: 'font-size:13px;color:#3D434B;min-height:18px', role: 'status' });
     g.innerHTML = '';
     function step(n, title, dim) { var st = el('div', { class: 'st' }); return { st: st, box: el('div', { class: 'step' + (dim ? ' dim' : '') }, [el('small', { text: n + '단계' }), el('b', { text: title }), st]) }; }
@@ -452,16 +455,38 @@
       var done = function () { btn.textContent = '복사됨'; setTimeout(function () { btn.textContent = '복사'; }, 1500); };
       try { navigator.clipboard.writeText(text).then(done, function () { note.textContent = '복사하지 못했습니다. 문장을 직접 끌어 복사해 주세요.'; }); } catch (e) { note.textContent = '복사하지 못했습니다. 문장을 직접 끌어 복사해 주세요.'; }
     }
-    [
+    // 작성하기 화면에는 연결 상태 한 줄만 — 연결 자체는 「설정」에서
+    var conn = el('div', { class: 'need', style: 'background:#fff;border-color:#E3E6EA' });
+    function connLine() {
+      var go = el('button', { type: 'button', class: 'gbtn', text: '설정 열기', onclick: openSettings });
+      function put(t, pri) { conn.innerHTML = ''; go.className = 'gbtn' + (pri ? ' pri' : ''); conn.appendChild(el('span', { text: t })); conn.appendChild(go); }
+      if (!D) return put('지금은 웹입니다. 내 Claude 연결은 윈도우 설치판의 「설정」에서 합니다.', false);
+      if (!NEW) return put('내 Claude 연결은 「설정」에서 합니다.', true);
+      put('연결 상태 확인 중…', false);
+      D.relayStatus().then(function (st) {
+        if (st.state === 'online') put('● 내 AI 연결됨 — 아래 문장을 Claude 창에 붙여 넣으면 됩니다.', false);
+        else put('○ 아직 내 AI가 연결되지 않았습니다. 「설정」에서 한 번만 연결하세요.', true);
+      }).catch(function () { put('내 Claude 연결은 「설정」에서 합니다.', true); });
+    }
+    (SET ? [
+      el('div', { style: 'display:flex;align-items:center;gap:12px;flex-wrap:wrap' }, [el('button', { type: 'button', class: 'gbtn', text: '← 홈', onclick: closeGuide }), el('h1', { text: '설정' })]),
+      el('h2', { text: '내 AI 연결 — 처음 한 번' }),
+      el('div', { class: 'need' }, [el('span', { html: '내 Claude(또는 GPT 등)가 서일 오피스에 직접 쓰게 하는 연결입니다. <b>윈도우 설치판</b>이 필요하고, 쓰는 동안 설치판이 켜져 있어야 합니다.' })]),
+      el('div', { class: 'steps' }, [s1.box, s2.box, s3.box]),
+      note,
+      how,
+      el('h2', { text: '계정 · 내 정보' }),
+      el('div', { class: 'need', style: 'background:#fff;border-color:#E3E6EA' }, [
+        el('span', { text: '학교 AI 로그인, 내 정보(소속·성명 — 신청서에 자동으로 채워짐), AI 모델 설정.' }),
+        el('button', { type: 'button', class: 'gbtn', text: '열기', onclick: function () { close(); if (window.SeoilAI) { window.SeoilAI.open(true); if (window.SeoilAI.settings) window.SeoilAI.settings(true); } } }),
+      ]),
+    ] : [
       el('div', { style: 'display:flex;align-items:center;gap:12px;flex-wrap:wrap' }, [el('button', { type: 'button', class: 'gbtn', text: '← 홈', onclick: closeGuide }), el('h1', { text: 'Claude로 작성하기' })]),
       el('div', { class: 'need' }, [
         el('span', { html: '내 Claude가 서일 오피스에 직접 씁니다. <b>Claude 구독</b>과 <b>윈도우 설치판</b>이 필요하고, 쓰는 동안 설치판이 켜져 있어야 합니다.' }),
         el('button', { type: 'button', class: 'gbtn', text: '없으면 → 양식 채우기(학교 AI)', onclick: function () { closeGuide(); pickForm(); } }),
       ]),
-      el('h2', { text: '연결 — 처음 한 번' }),
-      el('div', { class: 'steps' }, [s1.box, s2.box, s3.box]),
-      note,
-      how,
+      conn,
       el('h2', { text: '이렇게 시키세요 — Claude 창에 그대로 붙여 넣기' }),
       el('div', { class: 'ex' }, EXAMPLES.map(function (x) {
         var b = el('button', { type: 'button', class: 'gbtn', text: '복사', 'aria-label': x[0] + ' 예시 복사' });
@@ -469,8 +494,8 @@
         return el('div', { class: 'exi' }, [el('b', { text: x[0] }), el('span', { style: 'white-space:pre-line', text: x[1] }), b]);
       })),
       el('div', { class: 'tips', html: '<b>알아 둘 것</b><br>· Claude가 쓰는 동안 이 창에서 보면서 직접 고쳐도 됩니다. 사람이 고친 칸은 Claude가 덮어쓰지 않습니다.<br>· 저장은 .hwpx 로 됩니다. 마음에 안 들면 「되돌리기」.<br>· 학교 AI 사용량을 쓰지 않습니다(본인 Claude 구독으로 동작).' }),
-    ].forEach(function (n) { g.appendChild(n); });
-    status();
+    ]).forEach(function (n) { g.appendChild(n); });
+    if (SET) status(); else connLine();
   }
 
   function door(cls, icon, iconColor, title, desc, key, onclick) {
@@ -718,7 +743,7 @@
       el('div', { class: 'top' }, [
         el('span', { class: 'logo', role: 'img', 'aria-label': '서일 오피스', html: '<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="114" fill="#2F5BE7"/><path d="M132 82H318L392 156V408a24 24 0 0 1-24 24H132a24 24 0 0 1-24-24V106a24 24 0 0 1 24-24z" fill="#fff"/><path d="M318 82L392 156H336a18 18 0 0 1-18-18z" fill="#B9C8F6"/><text x="250" y="338" text-anchor="middle" font-family="Noto Sans KR,system-ui,sans-serif" font-weight="900" font-size="128" letter-spacing="-8" fill="#2F5BE7">서일</text></svg>' }), el('b', { style: 'font-size:16px', text: '서일 오피스' }), el('span', { style: 'flex:1' }),
         ui.back,
-        el('button', { type: 'button', class: 'me', text: '내 정보', onclick: function () { close(); if (window.SeoilAI) { window.SeoilAI.open(true); if (window.SeoilAI.settings) window.SeoilAI.settings(true); } } }),
+        el('button', { type: 'button', class: 'me', text: '설정', onclick: openSettings }),
       ]),
       ui.main,
       ui.ver = el('div', { class: 'ver', title: '누르면 복사', text: '', onclick: function () { try { navigator.clipboard.writeText(ui.ver.textContent); busy(false, '버전 정보를 복사했습니다.'); } catch (e) {} } }),
