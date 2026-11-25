@@ -597,6 +597,8 @@
   }
   function close() { ui.root.classList.remove('open'); document.body.classList.remove('seoil-home-open'); }
   function isOpen() { return ui.root.classList.contains('open'); }
+  // 홈 화면만 떠 있고 편집 중인 문서가 없다 — 설치판이 「새 창을 띄울지, 이 창에 열지」 정할 때 묻는다
+  function idle() { return !!ui.root && isOpen() && !(doc() && cur.doc && fileName() && !cur.closed); }
 
   // ---------- 문서가 바뀌면: 최근 문서 기록 + 빈칸 있으면 「AI로 채우기」 ----------
   function watch() {
@@ -824,6 +826,6 @@
     setTimeout(function () { D.relayStatus().then(sync).catch(function () {}); }, 3000);
     if (D.onRelayState) D.onRelayState(function (state) { if (state === 'gone') sync({ state: 'gone' }); });
   })();
-  window.SeoilStart = { open: open, close: close, closeDoc: closeDoc, saveAndClose: saveAndClose, pickForm: pickForm, openForm: openForm, newDoc: newDoc, newReport: newReport, forkCopy: forkCopy };
+  window.SeoilStart = { open: open, close: close, idle: idle, closeDoc: closeDoc, saveAndClose: saveAndClose, pickForm: pickForm, openForm: openForm, newDoc: newDoc, newReport: newReport, forkCopy: forkCopy };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();

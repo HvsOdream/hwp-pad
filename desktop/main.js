@@ -12,36 +12,62 @@ const START_URL = process.env.SEOIL_URL || 'https://hvsodream.github.io/hwp-pad/
 const ORIGIN = new URL(START_URL).origin;
 const DOC_RE = /\.(hwpx?|hml)$/i;
 
+// 창은 여러 개(문서 하나에 창 하나 — 한글처럼). win은 "지금 쓰는 창"(마지막에 앞에 온 창)이고, 바깥 AI 도구는 이 창을 다룬다.
+// 창마다의 상태는 w.seoil = { ready: 편집기 준비됨, pending: 준비 전에 온 파일, path: 이 앱이 이 창에 연 파일 }.
 let win = null;
-let pageReady = false;
-const pending = [];
+const wins = new Set();
 const opened = new Map(); // token -> 절대 경로 (이 앱이 연 파일만 다시 쓸 수 있다)
 
 function docArgs(argv) {
   return argv.slice(1).filter((a) => DOC_RE.test(a) && fs.existsSync(a)).map((a) => path.resolve(a));
 }
+const samePath = (a, b) => !!a && !!b && path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
 
-let currentPath = null; // 마지막으로 이 앱이 연 파일(바깥 AI 저장용)
-function sendOpen(p) {
+// 파일을 창 w에 연다(w를 안 주면 지금 쓰는 창)
+function sendOpen(p, w) {
+  w = w || win;
+  if (!w) return;
   const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
-  opened.set(token, p); currentPath = p;
+  opened.set(token, p); w.seoil.path = p;
   const msg = { token, name: path.basename(p), bytes: fs.readFileSync(p) };
-  if (pageReady && win) win.webContents.send('seoil:open-file', msg); else pending.push(msg);
+  if (w.seoil.ready) w.webContents.send('seoil:open-file', msg); else w.seoil.pending.push(msg);
+}
+function front(w) { if (w.isMinimized()) w.restore(); w.show(); w.focus(); win = w; }
+function pageIn(w, js) { return w.webContents.executeJavaScript(js, true); }
+// 이 창이 비어 있나(홈 화면만 떠 있고 편집 중인 문서가 없다) — 그러면 새 창 대신 여기에 연다
+async function isIdle(w) {
+  if (w.seoil.opening) return false;
+  try { return !!(await pageIn(w, '!!(window.SeoilStart && window.SeoilStart.idle && window.SeoilStart.idle())')); } catch (e) { return false; }
+}
+// 이 창에 지금도 그 파일이 열려 있나(창 안에서 다른 문서로 바꿨을 수 있어 편집기에 물어본다)
+async function hasDoc(w, p) {
+  if (!samePath(w.seoil.path, p)) return false;
+  if (w.seoil.opening) return true;
+  try { return (await pageIn(w, 'window.rhwpStudio && window.rhwpStudio.ai && window.rhwpStudio.ai.fileName ? window.rhwpStudio.ai.fileName() : ""')) === path.basename(p); } catch (e) { return false; }
+}
+// 탐색기 더블클릭·「연결 프로그램」·바깥 AI가 파일을 열 때: 이미 열린 창이 있으면 그 창을 앞으로, 빈 창이 있으면 거기에, 아니면 새 창.
+// (2026-11-25 전에는 창이 하나라 두 번째 파일이 첫 문서를 밀어냈다)
+async function openPath(p) {
+  for (const w of wins) if (await hasDoc(w, p)) { front(w); return w; }
+  for (const w of wins) if (await isIdle(w)) { sendOpen(p, w); front(w); return w; }
+  const w = createWindow(p);
+  sendOpen(p, w);
+  return w;
 }
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', (_e, argv) => {
-    if (!win) return;
-    if (win.isMinimized()) win.restore();
-    win.focus();
-    docArgs(argv).forEach(sendOpen);
+    const docs = docArgs(argv);
+    if (!docs.length) { if (win) front(win); else createWindow(); return; }
+    docs.reduce((q, p) => q.then(() => openPath(p)).catch(() => {}), Promise.resolve());
   });
   app.whenReady().then(() => {
     Menu.setApplicationMenu(null); // 메뉴 단축키(Ctrl+W·Ctrl+R…)가 한글 단축키를 먹지 않게
-    createWindow();
-    docArgs(process.argv).forEach(sendOpen);
+    const docs = docArgs(process.argv);
+    if (!docs.length) createWindow();
+    else docs.reduce((q, p) => q.then(() => openPath(p)).catch(() => {}), Promise.resolve());
     startAgent();
     startRelay();
   });
@@ -49,13 +75,15 @@ if (!app.requestSingleInstanceLock()) {
   app.on('will-quit', () => { try { fs.unlinkSync(agentFile()); } catch (e) {} });
 }
 
-function createWindow() {
-  win = new BrowserWindow({
+// file을 주면 "파일을 열려고 띄우는 창": 홈 화면을 거치지 않고(?nostart) 「여는 중」만 보이다가 바로 문서가 나온다.
+// (전에는 더블클릭으로 열면 홈 화면이 잠깐 보였다가 문서로 바뀌었다 — 2026-11-25)
+function createWindow(file) {
+  const w = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    title: '서일 오피스',
+    title: file ? path.basename(file) + ' - 서일 오피스' : '서일 오피스',
     backgroundColor: '#F4F5F7',
     autoHideMenuBar: true,
     webPreferences: {
@@ -66,23 +94,51 @@ function createWindow() {
       spellcheck: false,
     },
   });
-  win.maximize();
-  win.on('focus', () => { if (relay) relay.active(); }); // PC가 여럿이면 지금 쓰는 창으로 도구 호출이 오게
+  w.seoil = { ready: false, pending: [], path: null, opening: !!file };
+  wins.add(w); win = w;
+  w.maximize();
+  w.on('focus', () => { win = w; if (relay) relay.active(); }); // PC가 여럿이면 지금 쓰는 창으로 도구 호출이 오게
+  w.on('closed', () => { wins.delete(w); if (win === w) win = Array.from(wins).pop() || null; });
+
+  if (file) {
+    const cover = `(function () {
+      if (document.getElementById('seoil-opening')) return;
+      var d = document.createElement('div'); d.id = 'seoil-opening';
+      d.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#F4F5F7;display:flex;align-items:center;justify-content:center;font:15px "Noto Sans KR","Malgun Gothic",sans-serif;color:#5F6670';
+      d.textContent = ${JSON.stringify(path.basename(file) + ' 여는 중…')};
+      document.documentElement.appendChild(d);
+      setTimeout(function () { d.remove(); }, 25000);
+    })()`;
+    const uncover = () => { w.seoil.opening = false; if (!w.isDestroyed()) pageIn(w, `(function () { var d = document.getElementById('seoil-opening'); if (d) d.remove(); })()`).catch(() => {}); };
+    w.webContents.once('dom-ready', () => {
+      pageIn(w, cover).catch(() => {});
+      // 편집기가 그 파일을 띄우면 걷는다(이름이 바뀔 때까지 기다림). 끝내 안 열리면 25초 뒤 저절로 걷힌다.
+      pageIn(w, `(async () => {
+        const name = ${JSON.stringify(path.basename(file))};
+        for (const t0 = Date.now(); Date.now() - t0 < 25000; ) {
+          const ai = window.rhwpStudio && window.rhwpStudio.ai;
+          if (ai && ai.doc && ai.doc() && ai.fileName && ai.fileName() === name) { await new Promise((r) => setTimeout(r, 250)); return true; }
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        return false;
+      })()`).then(uncover, uncover);
+    });
+  }
 
   // 서일 오피스 주소 밖으로는 창 안에서 이동하지 않고 기본 브라우저로 연다
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  w.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith(ORIGIN)) shell.openExternal(url);
     return { action: 'deny' };
   });
-  win.webContents.on('will-navigate', (e, url) => {
+  w.webContents.on('will-navigate', (e, url) => {
     if (!url.startsWith(ORIGIN)) { e.preventDefault(); shell.openExternal(url); }
   });
 
   // 저장 안 한 변경이 있을 때(웹의 beforeunload) 닫기 확인
   // 한글처럼 「저장 / 저장 안 함 / 취소」. 저장을 고르면 편집기 저장(처음이면 저장 위치를 묻는다)이
   // 끝난 뒤 창을 닫고, 저장 위치 고르기를 취소하면 창을 그대로 둔다.
-  win.webContents.on('will-prevent-unload', (e) => {
-    const r = dialog.showMessageBoxSync(win, {
+  w.webContents.on('will-prevent-unload', (e) => {
+    const r = dialog.showMessageBoxSync(w, {
       type: 'question',
       buttons: ['저장하고 닫기', '닫기', '취소'],
       defaultId: 0,
@@ -94,51 +150,55 @@ function createWindow() {
     });
     if (r === 1) { e.preventDefault(); return; }
     if (r !== 0) return;
-    win.webContents.executeJavaScript(`(async () => {
+    w.webContents.executeJavaScript(`(async () => {
       const R = window.rhwpStudio, it = document.querySelector('[data-cmd="file:save"]');
       if (!R || typeof R.isDirty !== 'function' || !it) return false;
       it.classList.remove('disabled'); it.click();
       for (const t0 = Date.now(); R.isDirty() && Date.now() - t0 < 120000; ) await new Promise((r) => setTimeout(r, 200));
       return !R.isDirty();
     })()`, true).then((saved) => {
-      if (saved && !win.isDestroyed()) win.destroy();
-      else if (!saved && !win.isDestroyed()) dialog.showMessageBox(win, { type: 'info', title: '서일 오피스', message: '저장하지 않아 창을 닫지 않았습니다.', buttons: ['확인'] });
+      if (saved && !w.isDestroyed()) w.destroy();
+      else if (!saved && !w.isDestroyed()) dialog.showMessageBox(w, { type: 'info', title: '서일 오피스', message: '저장하지 않아 창을 닫지 않았습니다.', buttons: ['확인'] });
     }).catch(() => {});
   });
 
   // 개발용: F12 개발자 도구, Ctrl+Shift+F5 새로 불러오기(캐시 무시)
-  win.webContents.on('before-input-event', (e, input) => {
+  w.webContents.on('before-input-event', (e, input) => {
     if (input.type !== 'keyDown') return;
-    if (input.key === 'F12') { win.webContents.toggleDevTools(); e.preventDefault(); }
-    if (input.key === 'F5' && input.control && input.shift) { win.webContents.reloadIgnoringCache(); e.preventDefault(); }
+    if (input.key === 'F12') { w.webContents.toggleDevTools(); e.preventDefault(); }
+    if (input.key === 'F5' && input.control && input.shift) { w.webContents.reloadIgnoringCache(); e.preventDefault(); }
   });
 
   // 페이지가 새로 뜰 때만(본 창 이동) 준비 상태를 되돌린다 — 안쪽 틀(iframe)이 불러올 때는 그대로
-  win.webContents.on('did-start-navigation', (_e, _url, inPlace, isMain) => { if (isMain && !inPlace) pageReady = false; });
-  win.webContents.on('did-fail-load', (_e, code, desc, url, isMain) => {
+  w.webContents.on('did-start-navigation', (_e, _url, inPlace, isMain) => { if (isMain && !inPlace) w.seoil.ready = false; });
+  w.webContents.on('did-fail-load', (_e, code, desc, url, isMain) => {
     if (!isMain || code === -3) return;
-    dialog.showMessageBox(win, {
+    dialog.showMessageBox(w, {
       type: 'warning',
       title: '서일 오피스',
       message: '편집기를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.',
       detail: `${desc} (${code})\n${url}`,
       buttons: ['다시 시도', '닫기'],
-    }).then(({ response }) => { if (response === 0) win.loadURL(START_URL); else app.quit(); });
+    }).then(({ response }) => { if (response === 0) w.loadURL(START_URL); else w.destroy(); });
   });
 
-  win.loadURL(START_URL);
+  w.loadURL(file ? START_URL + (START_URL.includes('?') ? '&' : '?') + 'nostart' : START_URL);
+  return w;
 }
+
+const ours = (e) => { const w = BrowserWindow.fromWebContents(e.sender); return w && wins.has(w) ? w : null; };
 
 // 페이지(preload)가 편집기 준비를 알리면 보류 중인 파일을 넘긴다
 ipcMain.on('seoil:ready', (e) => {
-  if (!win || e.sender !== win.webContents) return;
-  pageReady = true;
-  while (pending.length) win.webContents.send('seoil:open-file', pending.shift());
+  const w = ours(e);
+  if (!w) return;
+  w.seoil.ready = true;
+  while (w.seoil.pending.length) w.webContents.send('seoil:open-file', w.seoil.pending.shift());
 });
 
 // 제자리 저장: 이 앱이 연 파일(token)에만 쓴다. 먼저 임시 파일에 쓰고 바꿔 끼워 반쯤 쓴 파일이 남지 않게.
 ipcMain.handle('seoil:write', async (e, token, bytes) => {
-  if (!win || e.sender !== win.webContents) throw new Error('forbidden');
+  if (!ours(e)) throw new Error('forbidden');
   const p = opened.get(token);
   if (!p) throw new Error('알 수 없는 파일입니다');
   const tmp = p + '.seoil-tmp';
@@ -148,7 +208,7 @@ ipcMain.handle('seoil:write', async (e, token, bytes) => {
 });
 
 ipcMain.handle('seoil:read', async (e, token) => {
-  if (!win || e.sender !== win.webContents) throw new Error('forbidden');
+  if (!ours(e)) throw new Error('forbidden');
   const p = opened.get(token);
   if (!p) throw new Error('알 수 없는 파일입니다');
   return fs.promises.readFile(p);
@@ -202,13 +262,14 @@ async function listDocs(folder) {
 async function saveDoc(target) {
   const st = await inPage('window.SeoilAgent.status()');
   if (!st.open) throw new Error('열린 문서가 없습니다');
+  const cur = win && win.seoil.path; // 이 창에 이 앱이 연 파일
   let p = target;
   if (!p) {
-    if (currentPath && path.basename(currentPath) === st.fileName) p = currentPath;
+    if (cur && path.basename(cur) === st.fileName) p = cur;
     else throw new Error(`"${st.fileName}"은 PC 파일과 연결되어 있지 않습니다. path에 저장할 절대 경로를 주세요.`);
   }
   if (!isDoc(p)) throw new Error('path는 .hwp/.hwpx 절대 경로여야 합니다');
-  if (fs.existsSync(p) && p !== currentPath) {
+  if (fs.existsSync(p) && p !== cur) {
     const r = await dialog.showMessageBox(win, {
       type: 'question', buttons: ['덮어쓰기', '취소'], defaultId: 1, cancelId: 1, title: '서일 오피스',
       message: 'Claude가 이미 있는 파일에 저장하려고 합니다.', detail: p,
@@ -221,7 +282,7 @@ async function saveDoc(target) {
   const tmp = p + '.seoil-tmp';
   await fs.promises.writeFile(tmp, Buffer.from(bytes));
   await fs.promises.rename(tmp, p);
-  if (p === currentPath) {
+  if (p === cur) {
     await inPage(`window.rhwpStudio.notifySaved ? window.rhwpStudio.notifySaved() : null`).catch(() => {});
     return `저장했습니다: ${p}`;
   }
@@ -261,14 +322,14 @@ async function runTool(name, a) {
     case 'open_document': {
       if (!isDoc(a.path) || !fs.existsSync(a.path)) throw new Error('없는 파일이거나 한글 문서(.hwp/.hwpx)가 아닙니다: ' + a.path);
       const p = path.resolve(a.path);
-      sendOpen(p);
-      if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+      // 이미 열린 창이 있으면 그 창, 빈 창이 있으면 거기, 아니면 새 창 — 사람이 보던 다른 문서를 밀어내지 않는다
+      front(await openPath(p));
       // 바깥 통로가 60초 안에 답을 기다리므로 그 안에 끝낸다
       await inPage(`window.SeoilAgent.waitOpened(${J(path.basename(p))}, 40000)`);
       return await inPage('window.SeoilAgent.read()');
     }
-    case 'new_document': await inPage(`window.SeoilAgent.newDocument(${J(a.kind === 'blank' ? 'blank' : 'report')})`); currentPath = null; return await inPage('window.SeoilAgent.read()');
-    case 'rewrite_copy': await inPage('window.SeoilAgent.rewriteCopy()'); currentPath = null; return await inPage('window.SeoilAgent.read()');
+    case 'new_document': await inPage(`window.SeoilAgent.newDocument(${J(a.kind === 'blank' ? 'blank' : 'report')})`); if (win) win.seoil.path = null; return await inPage('window.SeoilAgent.read()');
+    case 'rewrite_copy': await inPage('window.SeoilAgent.rewriteCopy()'); if (win) win.seoil.path = null; return await inPage('window.SeoilAgent.read()');
     case 'read_document': return await inPage('window.SeoilAgent.read()');
     case 'edit_document': {
       const ops = await loadImages(a.ops || []);
@@ -361,7 +422,7 @@ function writeEntry(p, on) {
   if (on) c.mcpServers['seoil-office'] = mcpEntry(); else delete c.mcpServers['seoil-office'];
   fs.writeFileSync(p, JSON.stringify(c, null, 2), 'utf8');
 }
-function sender(e) { if (!win || e.sender !== win.webContents) throw new Error('forbidden'); }
+function sender(e) { if (!ours(e)) throw new Error('forbidden'); }
 
 ipcMain.handle('seoil:claude-status', async (e) => {
   sender(e);
@@ -415,7 +476,7 @@ function relayInfo() { return { on: !!(relay && relay.key()), state: relay ? rel
 function startRelay() {
   relay = createRelay({
     base: RELAY_BASE, runTool,
-    onState: (st) => { if (win && !win.isDestroyed()) win.webContents.send('seoil:relay-state', st); },
+    onState: (st) => { for (const w of wins) if (!w.isDestroyed()) w.webContents.send('seoil:relay-state', st); },
   });
   const k = relaySaved();
   if (k) relay.start(k);
@@ -436,4 +497,4 @@ ipcMain.handle('seoil:relay-stop', (e) => {
   return relayInfo();
 });
 
-if (process.env.SEOIL_TEST) module.exports = { runTool, startAgent, startRelay, agentFile, __setWin: (w) => { win = w; pageReady = true; } };
+if (process.env.SEOIL_TEST) module.exports = { runTool, startAgent, startRelay, agentFile, __setWin: (w) => { w.seoil = { ready: true, pending: [], path: null }; wins.add(w); win = w; }, openPath, wins };
