@@ -2,7 +2,7 @@
 // 편집기는 배포된 웹(서일 오피스 PWA)을 그대로 띄운다 → 웹을 고치면 설치판도 다음 실행부터 바로 새 버전.
 // 브라우저와 달리 Ctrl+N/T/W 같은 키를 브라우저가 가로채지 않으므로 한글 단축키가 단축키 모드 없이 동작한다.
 // 탐색기에서 .hwp/.hwpx를 "서일 오피스로 열기" → 편집기로 열고, Ctrl+S는 그 파일에 제자리 덮어쓰기.
-const { app, BrowserWindow, Menu, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -72,18 +72,23 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', (_e, argv) => {
     const docs = docArgs(argv);
+    if (argv.includes('--hidden')) return; // 이미 켜져 있는데 자동 실행이 한 번 더 온 경우
     if (!docs.length) { if (win) front(win); else createWindow(); return; }
     openAll(docs);
   });
   app.whenReady().then(() => {
     Menu.setApplicationMenu(null); // 메뉴 단축키(Ctrl+W·Ctrl+R…)가 한글 단축키를 먹지 않게
     const docs = docArgs(process.argv);
-    if (!docs.length) createWindow();
-    else openAll(docs);
+    // --hidden: 윈도우 시작 때 자동 실행 — 창 없이 트레이에만 있다가, 사람이 열거나 내 AI 가 부르면 창을 띄운다
+    const hidden = process.argv.includes('--hidden') && !docs.length;
+    if (docs.length) openAll(docs);
+    else if (!hidden) createWindow();
     startAgent();
     startRelay();
+    applyBackground();
   });
-  app.on('window-all-closed', () => app.quit());
+  // 「켜 두기」가 켜져 있으면 창을 다 닫아도 트레이에 남는다(내 AI 가 언제든 부를 수 있게). 끝내려면 트레이 메뉴의 「끝내기」.
+  app.on('window-all-closed', () => { if (!backgroundOn()) app.quit(); });
   app.on('will-quit', () => { try { fs.unlinkSync(agentFile()); } catch (e) {} });
 }
 
@@ -239,7 +244,8 @@ function mcpScript() {
   return p.replace('app.asar' + path.sep, 'app.asar.unpacked' + path.sep);
 }
 function inPage(expr) {
-  if (!win) return Promise.reject(new Error('서일 오피스 창이 없습니다'));
+  // 트레이에만 있을 때(창 없음) 내 AI 가 부르면 홈 창을 띄워 그 창에서 일한다
+  if (!win || (win.isDestroyed && win.isDestroyed())) createWindow();
   if (win.isMinimized()) win.restore();
   return win.webContents.executeJavaScript(`(async () => {
     for (let i = 0; i < 100 && !window.SeoilAgent; i++) await new Promise(r => setTimeout(r, 200));
@@ -492,6 +498,51 @@ function startRelay() {
   const k = relaySaved();
   if (k) relay.start(k);
 }
+// ---- 켜 두기(2026-11-26): 윈도우 시작 때 자동 실행 + 창을 닫아도 트레이에 남기 ----
+// 로그인 커넥터(중계 서버)는 꺼져 있는 설치판을 켤 수 없다 → 서일 오피스를 안 켜 둔 채 Claude 에게 시키면
+// "설치판이 켜져 있지 않습니다"로 막힌다(실제로 겪음). 내 AI 를 연결한 PC 는 기본으로 켜 두고, 사람이 끌 수 있다.
+// prefs.json 의 background: true/false = 사람이 정함, 없음 = 내 AI 연결(relay.json)이 있으면 켬.
+let tray = null;
+function prefsFile() { return path.join(app.getPath('userData'), 'prefs.json'); }
+function prefs() { try { return JSON.parse(fs.readFileSync(prefsFile(), 'utf8')) || {}; } catch (e) { return {}; } }
+function backgroundOn() { const b = prefs().background; return typeof b === 'boolean' ? b : !!relaySaved(); }
+function backgroundInfo() { const b = prefs().background; return { on: backgroundOn(), chosen: typeof b === 'boolean', packaged: app.isPackaged }; }
+function setBackground(on) {
+  const pf = prefs(); pf.background = !!on;
+  fs.mkdirSync(app.getPath('userData'), { recursive: true });
+  fs.writeFileSync(prefsFile(), JSON.stringify(pf));
+  applyBackground();
+  return backgroundInfo();
+}
+function trayMenu() {
+  return Menu.buildFromTemplate([
+    { label: '서일 오피스 열기', click: () => { if (win && !win.isDestroyed()) front(win); else createWindow(); } },
+    { type: 'separator' },
+    { label: 'PC를 켤 때 같이 켜 두기', type: 'checkbox', checked: backgroundOn(), click: (item) => setBackground(item.checked) },
+    { type: 'separator' },
+    { label: '끝내기', click: () => { if (tray) { tray.destroy(); tray = null; } app.quit(); } },
+  ]);
+}
+async function applyBackground() {
+  const on = backgroundOn();
+  // 개발 실행(electron .)에서는 자동 실행을 등록하지 않는다
+  if (app.isPackaged) { try { app.setLoginItemSettings({ openAtLogin: on, args: ['--hidden'] }); } catch (e) {} }
+  if (on && !tray) {
+    try {
+      const icon = await app.getFileIcon(process.execPath, { size: 'small' });
+      if (!tray && backgroundOn()) {
+        tray = new Tray(icon);
+        tray.setToolTip('서일 오피스 — 내 AI 가 부를 수 있게 켜 둔 상태');
+        tray.on('click', () => { if (win && !win.isDestroyed()) front(win); else createWindow(); });
+      }
+    } catch (e) {}
+  }
+  if (!on && tray) { tray.destroy(); tray = null; if (!wins.size) app.quit(); }
+  if (tray) tray.setContextMenu(trayMenu());
+}
+ipcMain.handle('seoil:bg-status', (e) => { sender(e); return backgroundInfo(); });
+ipcMain.handle('seoil:bg-set', (e, on) => { sender(e); return setBackground(!!on); });
+
 ipcMain.handle('seoil:relay-status', (e) => { sender(e); return relayInfo(); });
 ipcMain.handle('seoil:relay-start', (e, key) => {
   sender(e);
@@ -499,12 +550,14 @@ ipcMain.handle('seoil:relay-start', (e, key) => {
   fs.mkdirSync(app.getPath('userData'), { recursive: true });
   fs.writeFileSync(relayFile(), JSON.stringify({ key }), { mode: 0o600 });
   relay.start(key);
+  applyBackground(); // 내 AI 를 연결했으면(사람이 따로 끄지 않은 한) 켜 두기
   return relayInfo();
 });
 ipcMain.handle('seoil:relay-stop', (e) => {
   sender(e);
   try { fs.unlinkSync(relayFile()); } catch (x) {}
   relay.stop();
+  applyBackground();
   return relayInfo();
 });
 

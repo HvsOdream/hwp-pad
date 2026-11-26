@@ -395,6 +395,17 @@
       var dot = el('span', { text: '✓ 로그인됨 · 확인 중…' });
       var tog = el('span');
       s2.st.appendChild(dot); s2.st.appendChild(tog);
+      // 켜 두기(설치판 0.4.37~): Claude 는 꺼져 있는 서일 오피스를 켤 수 없어서, PC 를 켤 때 같이 켜 두는 스위치를 둔다
+      var bg = el('div', { style: 'margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px' });
+      s2.st.appendChild(bg);
+      function paintBg() {
+        if (!D.bgStatus) return;
+        D.bgStatus().then(function (b) {
+          bg.innerHTML = '';
+          bg.appendChild(el('span', { text: b.on ? '● PC를 켤 때 서일 오피스도 같이 켜 둡니다(창을 닫아도 작업 표시줄 오른쪽 아이콘으로 남음). Claude가 언제든 부를 수 있습니다.' : '○ 서일 오피스가 꺼져 있으면 Claude가 부를 수 없습니다. 쓰기 전에 먼저 켜 두세요.' }));
+          bg.appendChild(el('button', { type: 'button', class: 'gbtn', text: b.on ? '같이 켜 두기 끄기' : '같이 켜 두기', onclick: function () { D.bgSet(!b.on).then(paintBg); } }));
+        }).catch(function () {});
+      }
       var cp = el('button', { type: 'button', class: 'gbtn pri', text: '주소 복사하고 Claude 열기' });
       cp.addEventListener('click', function () {
         note.textContent = '';
@@ -412,6 +423,7 @@
           tog.innerHTML = '';
           if (st.on) tog.appendChild(el('button', { type: 'button', class: 'gbtn', text: '이 PC 끊기', onclick: function () { relayOff(true); D.relayStop().then(paint); } }));
           else tog.appendChild(el('button', { type: 'button', class: 'gbtn', text: '이 PC 연결', onclick: function () { relayOff(false); relayGet().then(paint).catch(function (e) { note.textContent = '실패: ' + (e && e.message || e); }); } }));
+          paintBg();
         }).catch(function () { dot.textContent = '✓ 로그인됨'; });
       }
       // 로그인돼 있고 사람이 끄지 않았으면 이 PC를 붙여 둔다

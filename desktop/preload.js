@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('seoilDesktop', {
   relayStart: (key) => ipcRenderer.invoke('seoil:relay-start', key),
   relayStop: () => ipcRenderer.invoke('seoil:relay-stop'),
   onRelayState: (cb) => ipcRenderer.on('seoil:relay-state', (_e, st) => cb(st)),
+  // 켜 두기: 윈도우 시작 때 자동 실행 + 창을 닫아도 트레이에 남기(내 AI 가 꺼진 앱은 못 부르므로)
+  bgStatus: () => ipcRenderer.invoke('seoil:bg-status'),
+  bgSet: (on) => ipcRenderer.invoke('seoil:bg-set', !!on),
   isDesktop: true,
 });
 
