@@ -24,6 +24,7 @@
 | `para-dialog-keys.mjs` | `src/ui` | 문단 모양 대화상자에서 Alt+M/L/R/C/T/N 으로 정렬 방식 |
 | `para-dialog-pattern.mjs` | `src/engine` | 문단 모양 대화상자 무늬 0/-1 동일 취급(테두리 생기던 버그) |
 | `picture-paste-cell.mjs` | `src/engine` | 복사한 그림을 표 칸 안에 붙여넣기 |
+| `picture-wrap-labels.mjs` | `src/ui`, `src/styles` | 개체 속성 「본문과의 배치」 단추를 글자 아이콘(⬒⬓…) 대신 배치 그림 + 이름(자리 차지·어울림·빈 공간 채움·글 뒤로·글 앞으로)으로 |
 | `save-path.mjs` | `src/engine` | 저장 폴더 기억(File System Access)·iOS 공유 시트 |
 | `shortcut-code.mjs` | `src/command` | 단축키를 물리키(code)로도 매칭 |
 
