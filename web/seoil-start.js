@@ -311,13 +311,14 @@
     } catch (e) { busy(false, e.message || String(e)); }
   }
   /** 서일 보고서 기본 양식(표지 + Ⅰ장 + 1. □ ○ 단계 스타일)으로 새 문서 */
-  async function newReport() {
+  async function newReport(file, name) {
     try {
       busy(true);
-      var r = await fetch('forms/' + encodeURIComponent('서일_보고서') + '.hwp');
+      // file 을 주면 그 기본 양식으로(결과보고서: 표지 + 제1장 상자 + 절 제목 띠 + ❑ ❍ - 스타일)
+      var r = await fetch('forms/' + encodeURIComponent(typeof file === 'string' ? file : '서일_보고서.hwp'));
       if (!r.ok) throw new Error('보고서 양식을 받지 못했습니다');
       var bytes = new Uint8Array(await r.arrayBuffer());
-      await openBytes(bytes, '보고서.hwp', '보고서');
+      await openBytes(bytes, typeof name === 'string' ? name : '보고서.hwp', '보고서');
       busy(false); close();
       setTimeout(function () { if (window.SeoilAI) { window.SeoilAI.open(true); window.SeoilAI.reset(); } }, 300);
     } catch (e) { busy(false, e.message || String(e)); }
@@ -724,6 +725,10 @@
           el('button', { type: 'button', class: 'tc', onclick: newReport, 'aria-label': '보고서 양식으로 새 문서' }, [
             el('span', { class: 'thumb', 'aria-hidden': 'true', html: '<i class="bx"><b></b><s></s></i><i class="h"></i><i class="l1"></i><i class="l2"></i><i class="l2 s"></i><i class="l1"></i><i class="l2"></i>' }),
             el('span', { class: 'tt' }, [el('b', { text: '보고서' }), el('small', { text: '표지 · Ⅰ. 장 · 1. 절 · □ ○ - 개조식' })]),
+          ]),
+          el('button', { type: 'button', class: 'tc', onclick: function () { newReport('서일_결과보고서.hwpx', '결과보고서.hwpx'); }, 'aria-label': '결과보고서 양식으로 새 문서' }, [
+            el('span', { class: 'thumb', 'aria-hidden': 'true', html: '<i class="bx"><b></b><s></s></i><i class="h"></i><i class="l1"></i><i class="l2"></i><i class="h"></i><i class="l1"></i><i class="l2 s"></i>' }),
+            el('span', { class: 'tt' }, [el('b', { text: '결과보고서' }), el('small', { text: '표지 · 제1장 · 1. 절 띠 · ❑ ❍ - 개조식 · 표·그림 캡션' })]),
           ]),
           el('button', { type: 'button', class: 'tc', onclick: function () { openBuiltin('회의록_혁신.hwpx', '회의록(양식).hwpx'); }, 'aria-label': '회의록 양식(혁신) 열기' }, [
             el('span', { class: 'thumb', 'aria-hidden': 'true', html: '<i class="h"></i><i class="l1"></i><i class="l1"></i><i class="l2"></i><i class="l1"></i><i class="l2 s"></i>' }),

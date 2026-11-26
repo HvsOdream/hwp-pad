@@ -20,7 +20,7 @@
   function isHead(level) { return HEADS.indexOf(level) >= 0; }
 
   function bulletLevel(ch) {
-    if (/[□☐▢]/.test(ch)) return '□';
+    if (/[□☐▢❑❏]/.test(ch)) return '□';
     if (/[❍○◦o◯]/.test(ch)) return '○';
     if (/[-–—]/.test(ch)) return '-';
     if (/[·•▪∙]/.test(ch)) return '·';
@@ -31,8 +31,14 @@
     if (n === '1.') return '1.'; if (n === '가.') return '가.'; if (n === '1)') return '1)';
     if (n === '가)') return '가)'; if (n === '(1)') return '(1)';
     if (/^본문/.test(n)) return '본문';
+    // 스타일 이름이 글머리로 시작하면 그 단계(결과보고서 양식: "❑ 큰 항목" · "❍ 내용" · "- 세부")
+    if (/^[□☐▢❑❏]/.test(n)) return '□';
+    if (/^[❍○◦◯]/.test(n)) return '○';
+    if (/^[-–]/.test(n)) return '-';
     return null;
   }
+  /** 스타일 이름 첫 글자가 글머리면 그 글자(이 양식이 쓰는 기호). 없으면 '' */
+  function nameMark(name) { var m = /^\s*([□☐▢❑❏❍○◦◯\-–])/.exec(String(name || '')); return m ? m[1] : ''; }
 
   // ---------- 양식의 단계별 스타일 ----------
   var cache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
@@ -50,8 +56,13 @@
       if (pp && pp.headType === 'Bullet' && bullets[pp.numberingId]) { var b = bulletLevel(bullets[pp.numberingId]); if (b) { lv = b; auto = true; } }
       if (!lv) return;
       var c = out[lv];
-      if (!c || (used[st.id] || 0) > (used[c.id] || 0)) out[lv] = { id: st.id, name: st.name, auto: auto, cs: st.charShapeId, ps: st.paraShapeId };
+      if (!c || (used[st.id] || 0) > (used[c.id] || 0)) out[lv] = { id: st.id, name: st.name, auto: auto, cs: st.charShapeId, ps: st.paraShapeId, mark: auto ? '' : nameMark(st.name) };
     });
+    if (!out['1.']) {
+      var objs0 = objectParas(doc), hasBar = false;
+      for (var s2 = 0; s2 < nsec && !hasBar; s2++) for (var p2 = 0, n2 = doc.getParagraphCount(s2); p2 < n2; p2++) if (objs0[s2 + ':' + p2] && !chapterOf(doc, s2, p2) && barOf(doc, s2, p2)) { hasBar = true; break; }
+      if (hasBar) out['1.'] = { id: -1, name: '절 제목 띠', auto: false, bar: true };
+    }
     if (!out['본문']) { var base = list.filter(function (st) { return st.name === '바탕글'; })[0]; if (base) out['본문'] = { id: base.id, name: base.name, auto: false, cs: base.charShapeId, ps: base.paraShapeId }; }
     if (cache) cache.set(doc, out);
     return out;
@@ -66,7 +77,7 @@
     if (st) for (var k in lv) if (lv[k].id === st.id && k !== '본문') return k;
     if (st && /^󰊱|^[-\u{F0000}-\u{FFFFD}]/u.test(st.name || '') && !text.trim()) return 'Ⅰ?';
     var t = text.replace(/^\s+/, '');
-    if (/^[□☐]/.test(t)) return '□';
+    if (/^[□☐❑❏]/.test(t)) return '□';
     if (/^[❍○◦◯]/.test(t)) return '○';
     if (/^[-–]\s/.test(t)) return '-';
     if (/^[·•▪]\s?/.test(t)) return '·';
@@ -76,6 +87,19 @@
     if (/^[가-하]\)\s/.test(t)) return '가)';
     if (/^\(\d+\)\s/.test(t)) return '(1)';
     return '본문';
+  }
+  var JANG = /^제\s*(\d{1,2})\s*장\s*(.*)$/;
+  var HEAD_NO = /^\s*(?:(?:Ⅰ|Ⅱ|Ⅲ|Ⅳ|Ⅴ|Ⅵ|Ⅶ|Ⅷ|Ⅸ|Ⅹ)\.?|제\s*\d{1,2}\s*장)\s*/;
+  /** 절 제목 띠: 한 칸짜리 표에 "1. 제목" (결과보고서 양식). 장 상자가 아닐 때만 본다 */
+  function barOf(doc, s, p) {
+    try {
+      var cp = JSON.stringify([{ controlIndex: 0, cellIndex: 0, cellParaIndex: 0 }]);
+      var dims = J(doc.getTableDimensionsByPath(s, p, cp));
+      if (dims.cellCount !== 1) return null;
+      var L = doc.getCellParagraphLengthByPath(s, p, cp);
+      var t = L ? String(doc.getTextInCellByPath(s, p, cp, 0, L)).trim() : '';
+      return /^\d{1,2}\.\s+\S/.test(t) ? { text: t } : null;
+    } catch (e) { return null; }
   }
   /** 장 제목 상자: 표 하나짜리 문단, 칸에 Ⅰ. 같은 로마 숫자 + 제목 */
   function chapterOf(doc, s, p) {
@@ -90,7 +114,11 @@
         texts.push(L ? String(doc.getTextInCellByPath(s, p, cp, 0, L)).trim() : '');
       }
       var ri = -1; texts.forEach(function (t, i) { if (ri < 0 && /^(Ⅰ|Ⅱ|Ⅲ|Ⅳ|Ⅴ|Ⅵ|Ⅶ|Ⅷ|Ⅸ|Ⅹ|I|II|III|IV|V|VI)\.?$/.test(t)) ri = i; });
-      if (ri < 0) return null;
+      if (ri < 0) {
+        // [결과보고서 양식] 한 칸에 "제1장  제목"
+        for (var q = 0; q < texts.length; q++) { var jm = JANG.exec(texts[q]); if (jm) return { roman: '제' + jm[1] + '장', title: jm[2], romanCell: q, titleCell: q, jang: Number(jm[1]) }; }
+        return null;
+      }
       var ti = -1; texts.forEach(function (t, i) { if (ti < 0 && i !== ri && t) ti = i; });
       return { roman: texts[ri], title: ti >= 0 ? texts[ti] : '', romanCell: ri, titleCell: ti };
     } catch (e) { return null; }
@@ -112,10 +140,12 @@
     for (var s = 0; s < nsec; s++) for (var p = 0, n = doc.getParagraphCount(s); p < n; p++) {
       var t = textOf(doc, s, p), c = objs[s + ':' + p] ? 1 : 0, level;
       var ch = c ? chapterOf(doc, s, p) : null;
+      var br = c && !ch ? barOf(doc, s, p) : null;
       if (ch) { level = 'Ⅰ'; t = ch.roman + ' ' + ch.title; }
+      else if (br) { level = '1.'; t = br.text; }
       else level = levelOf(doc, lv, s, p, t);
       if (level === 'Ⅰ?') level = '본문';
-      out.push({ id: 'B' + (++k), sec: s, para: p, level: level, text: t, ctrl: c, chapter: ch });
+      out.push({ id: 'B' + (++k), sec: s, para: p, level: level, text: t, ctrl: c, chapter: ch, bar: br });
     }
     // 첫 장 제목 상자 앞(표지·제출문·목차)은 본문이 아니다
     var first = -1; out.some(function (b, i) { if (b.level === 'Ⅰ') { first = i; return true; } return false; });
@@ -141,7 +171,7 @@
   function find(o, id) { for (var i = 0; i < o.length; i++) if (o[i].id === id) return i; return -1; }
   function stripMark(level, text, auto) {
     var t = String(text || '').replace(/^\s+/, '');
-    if (level !== '본문' && (auto || BODY.indexOf(level) >= 0)) t = t.replace(/^[□☐❍○◦◯·•▪]\s*/, '').replace(/^[-–]\s+/, '');
+    if (level !== '본문' && (auto || BODY.indexOf(level) >= 0)) t = t.replace(/^[□☐❑❏❍○◦◯·•▪]\s*/, '').replace(/^[-–]\s+/, '');
     return t;
   }
   /** (sec, para) 뒤에 문단 하나: 빈 문단을 만들고 → 글 넣고 → 단계 스타일·글자 모양 */
@@ -156,8 +186,10 @@
     var t = stripMark(level, text, st && st.auto);
     if (!st || !st.auto) {
       // 기호가 스타일에 없으면 글에 붙인다(□ ○ -), 제목은 AI가 번호까지 씀
-      if (level === '□' && !/^□/.test(t)) t = '□ ' + t;
-      else if (level === '○' && !/^[❍○]/.test(t)) t = '❍ ' + t;
+      // 양식 스타일 이름에 기호가 있으면 그 기호를 쓴다(❑ 큰 항목 → "❑ …")
+      var mk = st && st.mark && key === level ? st.mark : '';
+      if (level === '□' && !/^[□☐❑❏]/.test(t)) t = (mk || '□') + ' ' + t;
+      else if (level === '○' && !/^[❍○]/.test(t)) t = (mk || '❍') + ' ' + t;
       else if ((level === '-' || level === '·') && !/^[-·]/.test(t)) t = (level === '-' ? '- ' : '· ') + t;
     }
     if (t) doc.insertText(sec, np, 0, t);
@@ -169,6 +201,27 @@
       var len = doc.getParagraphLength(sec, np);
       if (len && st.cs != null) { try { doc.setCharShapeId(sec, np, 0, len, st.cs); } catch (e) {} }
     }
+    return np;
+  }
+  /** 항목 하나 넣기: 절 제목 띠를 쓰는 양식에서 '1.' 은 띠(표)를 복제해 만든다 */
+  function insertItem(doc, lv, sec, at, it) {
+    if (it.level === '1.' && lv['1.'] && lv['1.'].bar) {
+      var bars = outline(doc).filter(function (b) { return b.bar; });
+      if (bars.length) { var np = cloneBox(doc, lv, bars[bars.length - 1], sec, at); setCell(doc, sec, np, 0, String(it.text || '').trim()); return np; }
+    }
+    return insertAfter(doc, lv, sec, at, it.level, it.text);
+  }
+  /** 표 하나짜리 제목 문단(장 상자·절 띠) src 를 (sec, para) 뒤에 복제하고 새 문단 번호를 돌려준다 */
+  function cloneBox(doc, lv, src, sec, para) {
+    doc.copyControl(src.sec, src.para, '', 0);
+    var np = insertAfter(doc, lv, sec, para, '본문', '');
+    // 원본 문단의 스타일·모양을 따른다
+    try { var st = J(doc.getStyleAt(src.sec, src.para)); doc.applyStyle(sec, np, st.id); } catch (e) {}
+    try { var sp = J(doc.getParaPropertiesAt(src.sec, src.para + (src.sec === sec && src.para >= np ? 1 : 0))); if (sp && sp.paraShapeId != null) doc.setParaShapeId(sec, np, sp.paraShapeId); } catch (e) {}
+    var pr = J(doc.pasteControl(sec, np, 0));
+    if (pr.paraIdx != null) np = pr.paraIdx;
+    // 붙여넣기가 뒤에 만든 빈 문단은 지운다
+    try { if (np + 1 < doc.getParagraphCount(sec) && !doc.getParagraphLength(sec, np + 1) && !J(doc.getControlTextPositions(sec, np + 1)).length) doc.deleteParagraph(sec, np + 1); } catch (e) {}
     return np;
   }
   function isBoundary(b, level) { return b.level === 'Ⅰ' || (isHead(b.level) && rank(b.level) <= rank(level)); }
@@ -192,16 +245,17 @@
     // 첫 항목이 같은 단계 제목이면 제목 자체를 바꾼다(예: "1. 절 제목" → "1. 추진 배경")
     if (items.length && items[0].level === h.level) {
       var first = items.shift();
-      if (h.level === 'Ⅰ' && h.chapter) { if (h.chapter.titleCell >= 0) setCell(doc, h.sec, h.para, h.chapter.titleCell, String(first.text).replace(/^\s*(Ⅰ|Ⅱ|Ⅲ|Ⅳ|Ⅴ|Ⅵ|Ⅶ|Ⅷ|Ⅸ|Ⅹ)\.?\s*/, '')); }
+      if (h.level === 'Ⅰ' && h.chapter) { if (h.chapter.titleCell >= 0) { var nt = String(first.text).replace(HEAD_NO, ''); setCell(doc, h.sec, h.para, h.chapter.titleCell, h.chapter.jang ? h.chapter.roman + '  ' + nt : nt); } }
+      else if (h.bar) { setCell(doc, h.sec, h.para, 0, String(first.text).trim()); }
       else { var L = doc.getParagraphLength(h.sec, h.para); if (L) doc.deleteText(h.sec, h.para, 0, L); if (first.text) doc.insertText(h.sec, h.para, 0, first.text); }
     }
-    items.forEach(function (it) { at = insertAfter(doc, lv, h.sec, at, it.level, it.text); n++; });
+    items.forEach(function (it) { at = insertItem(doc, lv, h.sec, at, it); n++; });
     return n;
   }
   function writeAfter(doc, lv, o, op) {
     var i = op.after === 'end' ? o.length - 1 : find(o, op.after); if (i < 0) throw new Error(op.after + ' 문단이 없습니다');
     var b = o[i], at = b.para, n = 0;
-    (op.items || []).forEach(function (it) { at = insertAfter(doc, lv, b.sec, at, it.level, it.text); n++; });
+    (op.items || []).forEach(function (it) { at = insertItem(doc, lv, b.sec, at, it); n++; });
     return n;
   }
   /** 장 제목 상자 복제: 마지막(또는 지정) 장 상자를 복사해 붙이고 번호·제목을 바꾼다 */
@@ -224,7 +278,10 @@
     try { doc.applyParaFormat(b.sec, np, JSON.stringify({ pageBreakBefore: true })); } catch (e) {}
     var ch = chapterOf(doc, b.sec, np);
     var num = ROMAN[Math.min(boxes.length, ROMAN.length - 1)];
-    if (ch) {
+    if (ch && ch.jang) {
+      var last = 0; boxes.forEach(function (x) { if (x.chapter.jang > last) last = x.chapter.jang; });
+      setCell(doc, b.sec, np, ch.titleCell, '제' + (last + 1) + '장  ' + String(op.chapter).replace(HEAD_NO, ''));
+    } else if (ch) {
       setCell(doc, b.sec, np, ch.romanCell, (/\.$/.test(ch.roman) ? num + '.' : num));
       if (ch.titleCell >= 0) setCell(doc, b.sec, np, ch.titleCell, op.chapter);
     }
@@ -244,11 +301,11 @@
     for (var i = a; i <= z; i++) {
       var b = o[i]; if (b.ctrl || !b.text.trim() || b.level === 'Ⅰ') continue;
       var t = b.text.replace(/^\s+/, ''), level = null;
-      if (/^[□☐]/.test(t)) level = '□'; else if (/^[❍○◦◯]/.test(t)) level = '○'; else if (/^[-–]\s/.test(t)) level = '-';
+      if (/^[□☐❑❏]/.test(t)) level = '□'; else if (/^[❍○◦◯]/.test(t)) level = '○'; else if (/^[-–]\s/.test(t)) level = '-';
       else if (/^\d+\.\s/.test(t)) level = '1.'; else if (/^[가-하]\.\s/.test(t)) level = '가.'; else if (/^\d+\)\s/.test(t)) level = '1)'; else if (/^[가-하]\)\s/.test(t)) level = '가)'; else if (/^\(\d+\)\s/.test(t)) level = '(1)';
       if (!level || !lv[level]) continue;
       var st = lv[level];
-      if (st.auto) { var lead = b.text.length - b.text.replace(/^\s*[□☐❍○◦◯·•▪]\s*/, '').replace(/^\s*[-–]\s+/, '').length; if (lead > 0) doc.deleteText(b.sec, b.para, 0, lead); }
+      if (st.auto) { var lead = b.text.length - b.text.replace(/^\s*[□☐❑❏❍○◦◯·•▪]\s*/, '').replace(/^\s*[-–]\s+/, '').length; if (lead > 0) doc.deleteText(b.sec, b.para, 0, lead); }
       else { var sp = b.text.length - b.text.replace(/^\s+/, '').length; if (sp > 0) doc.deleteText(b.sec, b.para, 0, sp); }
       doc.applyStyle(b.sec, b.para, st.id); n++;
     }
