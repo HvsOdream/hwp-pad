@@ -1,7 +1,7 @@
 # 서일 기본 양식 「결과보고서」(web/forms/서일_결과보고서.hwpx) 만드는 스크립트.
 # 원본: 2026-11 QuestAI 시제품 검수보고서(hwpx, 저장소에는 넣지 않음)에서 표지·제1장 상자·절 제목 띠·❑/- 문단·표·캡션의 모양만 남기고
 #  - 내용·그림 17장·업체 정보 삭제, 다른 기관 CI 삭제(꼬리말 서일대학교 CI 만, 사업단 이름 줄 지움)
-#  - 글꼴 KoPubWorld돋움체 → 함초롬돋움(굵은 면은 굵게 속성으로)
+#  - 글꼴은 원본의 KoPubWorld돋움체 유지
 #  - 단계 스타일 추가: "❑ 큰 항목" · "❍ 내용" · "- 세부" (web/seoil-write.js 가 스타일 이름의 기호로 단계를 알아봄)
 # 사용: python3 docs/forms/build-result-report.py <원본.hwpx> web/forms/서일_결과보고서.hwpx  (lxml, Pillow 필요)
 import re, zipfile, copy, io, sys
@@ -13,11 +13,9 @@ NS={'hp':'http://www.hancom.co.kr/hwpml/2011/paragraph','hh':'http://www.hancom.
 HP='{%s}'%NS['hp']
 # ---------- header.xml: 글꼴·스타일 ----------
 h=zin.read('Contents/header.xml').decode('utf8')
-h=h.replace('face="KoPubWorld돋움체 Bold"','face="함초롬돋움"').replace('face="KoPubWorld돋움체 Medium"','face="함초롬돋움"')
-assert 'KoPub' not in h
-# 굵은 글꼴(면 0)을 쓰던 글자 모양 중 굵게 표시가 없던 것(3: 표지 제목)에 굵게
-m=re.search(r'<hh:charPr id="3".*?</hh:charPr>',h,re.S); c=m.group(0); assert '<hh:bold/>' not in c
-h=h.replace(c,c.replace('<hh:underline','<hh:bold/><hh:underline',1))
+# 글꼴은 원본 그대로 KoPubWorld돋움체(Medium·Bold). 무료 배포 글꼴이고, 서일 오피스(rhwp-studio)가
+# 웹폰트로 받아 쓰므로(외부 웹폰트를 켠 빌드) PC 에 깔려 있지 않아도 앱에서는 같은 모양으로 보인다.
+assert 'face="KoPubWorld돋움체 Medium"' in h and 'face="KoPubWorld돋움체 Bold"' in h
 # ○ 단계 문단 모양(17): '-'(4)와 ❑(14) 사이 들여쓰기
 p4=re.search(r'<hh:paraPr id="4".*?</hh:paraPr>',h,re.S).group(0)
 p17=p4.replace('id="4"','id="17"',1).replace('<hc:left value="1500"','<hc:left value="1150"').replace('<hc:left value="3000"','<hc:left value="2300"')
