@@ -288,7 +288,7 @@
   }
   function meLine(j) {
     if (!j) return '';
-    if (j.status) return j.name + ' · ' + ({ pending: '승인 대기', active: '이번 달 ' + j.used + '% 사용', off: '사용 중지' }[j.status] || j.status);
+    if (j.status) return j.name + (j.email ? ' (' + j.email + ')' : '') + ' · ' + ({ pending: '승인 대기', active: '이번 달 ' + j.used + '% 사용', off: '사용 중지' }[j.status] || j.status);
     return j.name + ' · 오늘 ' + j.today + '/' + j.daily + '회';
   }
   function signedIn(res) {
@@ -392,19 +392,23 @@
     function note(t) { msg.style.color = ''; msg.textContent = t; }
     var body = [];
     if (ls(LS_TOKEN)) {
-      var oldPw = el('input', { type: 'password', placeholder: '지금 비밀번호', autocomplete: 'current-password' });
+      var oldPw = el('input', { type: 'password', placeholder: '지금 비밀번호 (임시 비밀번호를 받았으면 그것)', autocomplete: 'current-password' });
       var newPw = el('input', { type: 'password', placeholder: '새 비밀번호 (8자 이상)', autocomplete: 'new-password' });
       var pwBox = el('div', { class: 'body', style: 'display:none' }, [oldPw, newPw, el('div', { class: 'row' }, [el('button', { class: 'send', style: 'height:32px', text: '바꾸기', onclick: function () {
         post('/v1/password', { old: oldPw.value, new: newPw.value }).then(function () { oldPw.value = newPw.value = ''; pwBox.style.display = 'none'; note('비밀번호를 바꿨습니다.'); }, err);
       } })])]);
+      // 지금 어느 계정으로 로그인돼 있는지(이메일)를 늘 보여 준다 — 비밀번호를 바꾸거나 관리자에게 물을 때 필요하다
+      var who = el('div', { class: 'note', text: meCache && meCache.email ? '로그인한 계정: ' + meCache.email : '로그인한 계정 확인 중…' });
+      body.push(who);
       body.push(el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' }, [
         el('button', { class: 'chip', text: '비밀번호 바꾸기', onclick: function () { pwBox.style.display = pwBox.style.display === 'none' ? '' : 'none'; } }),
         el('button', { class: 'chip', text: '로그아웃', onclick: function () { post('/v1/logout').catch(function () {}).then(function () { ls(LS_TOKEN, null); meCache = null; try { var D = window.seoilDesktop; if (D && D.relayStop) D.relayStop(); } catch (e) {} drawSettings(); }); } }),
       ]), pwBox, msg);
       fetchMe().then(function (j) {
         sum.textContent = meLine(j);
+        who.textContent = j.email ? '로그인한 계정: ' + j.email : '사용 코드로 쓰는 중';
         if (j.status === 'pending') note('관리자가 가입을 승인하면 바로 쓸 수 있습니다.');
-        else if (j.status === 'active') note(j.email + ' · 이번 달 사용량 ' + j.used + '% (매달 1일에 다시 채워집니다)');
+        else if (j.status === 'active') note('이번 달 사용량 ' + j.used + '% (매달 1일에 다시 채워집니다)');
       }, function (e) { if (e.status === 401) { ls(LS_TOKEN, null); meCache = null; sum.textContent = '로그인 안 함'; } err(e); });
       return card('학교 AI', sum, body, false);
     }

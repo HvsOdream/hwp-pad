@@ -367,6 +367,7 @@
     var NEW = !!(D && D.relayStart); // 0.4.32~ 설치판: 연결 주소(원격 커넥터) 방식
     var s1 = step(1, '서일 오피스 설치판'), s2 = step(2, NEW || !D ? '로그인' : 'Claude 데스크톱', !D), s3 = step(3, NEW || !D ? 'Claude에 추가' : '연결', !D);
     if (D) s1.st.textContent = '✓ 지금 설치판에서 보고 있습니다';
+    else if (isApp) s1.st.textContent = '아이패드에서는 쓸 수 없습니다. 윈도우 PC의 설치판에서 합니다. 학교 AI 로그인은 아래 「계정 · 내 정보」에서 하세요.';
     else { s1.st.appendChild(el('span', { text: '지금은 웹입니다. 윈도우 설치판이 필요합니다.' })); s1.st.appendChild(el('a', { class: 'gbtn pri', href: DESKTOP_URL, target: '_blank', rel: 'noopener', text: '설치판 받기' })); }
     function run(fn) {
       note.textContent = '잠시만요…';
@@ -473,7 +474,7 @@
     function connLine() {
       var go = el('button', { type: 'button', class: 'gbtn', text: '설정 열기', onclick: openSettings });
       function put(t, pri) { conn.innerHTML = ''; go.className = 'gbtn' + (pri ? ' pri' : ''); conn.appendChild(el('span', { text: t })); conn.appendChild(go); }
-      if (!D) return put('지금은 웹입니다. 내 Claude 연결은 윈도우 설치판의 「설정」에서 합니다.', false);
+      if (!D) return put(isApp ? '내 Claude 연결은 윈도우 PC의 설치판에서 합니다. 아이패드에서는 오른쪽 AI(학교 AI)를 쓰세요.' : '지금은 웹입니다. 내 Claude 연결은 윈도우 설치판의 「설정」에서 합니다.', false);
       if (!NEW) return put('내 Claude 연결은 「설정」에서 합니다.', true);
       put('연결 상태 확인 중…', false);
       D.relayStatus().then(function (st) {
