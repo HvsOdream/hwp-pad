@@ -72,6 +72,26 @@
     '#seoil-ai .chip{font:inherit;font-size:13px;padding:5px 12px;border:1px solid #D9DCE1;border-radius:16px;background:#fff;cursor:pointer}#seoil-ai .chip:hover{border-color:#2F5BEA;color:#2F5BEA}#seoil-ai .chip:disabled{opacity:.5;cursor:default}',
     '#seoil-ai .applied{border:1px solid #CFE8DA;background:#F3FAF6;border-radius:10px;padding:8px 12px;font-size:12px;display:flex;align-items:center;gap:8px}',
     '#seoil-ai .ft{border-top:1px solid #ECEEF1;padding:10px 12px;display:flex;flex-direction:column;gap:8px}',
+    // 양식 채우기 도구 모양(2026-11-27): 단계 줄 · 칸 목록 · 자료 넣기 카드 — 채팅창이 아니라 도구로 보이게
+    '#seoil-ai .steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}',
+    '#seoil-ai .steps span{padding:6px 10px;border-radius:8px;border:1px solid #D9DCE1;color:#5F6670;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '#seoil-ai .steps span.on{background:#1C1F23;border-color:#1C1F23;color:#fff;font-weight:700}',
+    '#seoil-ai .board{border-bottom:1px solid #ECEEF1;padding:8px 14px;display:flex;flex-direction:column;gap:6px;font-size:12px}',
+    '#seoil-ai .board .bh{display:flex;align-items:center;gap:8px;color:#3D434B}',
+    '#seoil-ai .board .bl{border:1px solid #ECEEF1;border-radius:10px;max-height:176px;overflow:auto}',
+    '#seoil-ai .board .br{display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;padding:7px 10px;border:0;border-bottom:1px solid #ECEEF1;background:#fff;font:inherit;font-size:13px;text-align:left;cursor:pointer}',
+    '#seoil-ai .board .br:last-child{border-bottom:0}',
+    '#seoil-ai .board .br span.nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '#seoil-ai .tag{font-size:11px;padding:1px 8px;border-radius:10px;white-space:nowrap;background:#EEF0F3;color:#4A5058}',
+    '#seoil-ai .tag.ok{background:#E7F4EC;color:#17603A}#seoil-ai .tag.dr{background:#FFF1D6;color:#7A4A00}#seoil-ai .tag.as{background:#FFE9D6;color:#8A3D00}',
+    '#seoil-ai .log>*{flex-shrink:0}',
+    '#seoil-ai .intake{border:2px dashed #9AA1AC;border-radius:12px;background:#F7F8FA;padding:14px;display:flex;flex-direction:column;gap:10px}',
+    '#seoil-ai .intake b{font-size:15px}',
+    '#seoil-ai .big{font:inherit;font-size:13px;min-height:40px;padding:0 12px;border-radius:8px;border:1px solid #9AA1AC;background:#fff;cursor:pointer;text-align:left}',
+    '#seoil-ai .big.pri{background:#2F5BEA;border-color:#2F5BEA;color:#fff;font-weight:700;text-align:center}',
+    '#seoil-ai .big small{color:#5F6670;font-size:12px}',
+    '#seoil-ai .ft .tool{font-size:11.5px;color:#5F6670}',
+    '@media (pointer:coarse){#seoil-ai .big{min-height:46px}#seoil-ai .board .br{padding:10px}}',
     '#seoil-ai .len{display:flex;align-items:center;gap:4px;font-size:12px;color:#5F6670}#seoil-ai .len span{margin-right:4px}#seoil-ai .len button{font:inherit;font-size:12px;padding:2px 10px;border:1px solid #D9DCE1;border-radius:12px;background:#fff;color:#5F6670;cursor:pointer}#seoil-ai .len button.on{border-color:#2F5BEA;background:#EEF2FD;color:#2F5BEA;font-weight:600}',
     '#seoil-ai .len .fbtn{border-color:#C9D4F8;color:#2F5BEA}',
     '#seoil-ai .fold{border:1px solid #D9DCE1;border-radius:10px;background:#fff;display:flex;flex-direction:column;max-height:300px;overflow:hidden}',
@@ -205,6 +225,8 @@
   function setLen(v) { ls(LS_LEN, v); drawLen(); }
   function drawLen() { if (!ui.len) return; Array.prototype.forEach.call(ui.len.querySelectorAll('button'), function (b) { b.classList.toggle('on', b.dataset.len === lenNow()); }); }
   var ui = {};
+  var PH_INPUT = '자료를 붙여 넣거나 고칠 곳을 말해 주세요';
+  var PH_TOPIC = '무엇에 대한 문서인지 한 줄로 (예: 신산업특화 선도대학 2차 운영위원회)';
 
   function build() {
     var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
@@ -225,12 +247,18 @@
         ui.setBtn = el('button', { class: 'ibtn', title: '내 정보·AI 코드·Claude 연결', onclick: function () { setOpen(!ui.setOn); }, text: '설정' }),
         el('button', { class: 'ibtn', title: '닫기', onclick: toggle, text: '닫기' })]),
       ui.form, ui.prog, el('div', { class: 'bar' }, [ui.bar]),
+      ui.steps = el('div', { class: 'steps', style: 'display:none' }, ['① 자료 넣기', '② 채우기', '③ 확인'].map(function (t) { return el('span', { text: t }); })),
     ]);
+    // 칸 목록: 채울 칸과 지금 상태(빈칸·채움·초안·묻는 중). 누르면 그 칸을 짚어 말할 수 있게 입력란에 이름을 넣는다
+    ui.boardList = el('div', { class: 'bl' });
+    ui.boardSum = el('span', { style: 'flex:1' });
+    ui.boardBtn = el('button', { class: 'link', text: '접기', onclick: function () { var off = ui.boardList.style.display !== 'none'; ui.boardList.style.display = off ? 'none' : ''; ui.boardBtn.textContent = off ? '펼치기' : '접기'; } });
+    ui.board = el('div', { class: 'board', style: 'display:none' }, [el('div', { class: 'bh' }, [el('b', { text: '채울 칸' }), ui.boardSum, ui.boardBtn]), ui.boardList]);
     ui.set = el('div', { class: 'set', style: 'display:none' });
     ui.log = el('div', { class: 'log' });
     ui.att = el('div', { class: 'att' });
     ui.file = el('input', { type: 'file', multiple: 'multiple', accept: '.hwp,.hwpx,.pdf,.png,.jpg,.jpeg,.txt,.md,image/*', style: 'display:none', onchange: onFiles });
-    ui.input = el('textarea', { rows: '2', placeholder: '메모·녹취·요청 공문을 넣거나, 무엇에 대한 문서인지 말해 주세요. 명단은 엑셀에서 복사해 붙여 넣으면 AI 없이 표에 들어갑니다.', onkeydown: function (e) { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } } });
+    ui.input = el('textarea', { rows: '2', placeholder: PH_INPUT, onkeydown: function (e) { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } } });
     ui.send = el('button', { class: 'send', onclick: function () { send(); }, text: '보내기' });
     var clip = el('button', { class: 'clip', title: '자료 첨부 (메모·녹취 글, 사진, 요청 공문 hwp·pdf)', onclick: function () { ui.file.click(); } });
     clip.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5F6670" stroke-width="1.8"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7-7l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8L10.2 17.9a1.7 1.7 0 0 1-2.4-2.4l8-8"/></svg>';
@@ -241,9 +269,10 @@
       ui.len.appendChild(el('button', { type: 'button', class: 'fbtn', title: '정해 둔 폴더의 파일을 목록에서 골라 첨부', onclick: function () { toggleFolder(); }, text: '자료 폴더' }));
     }
     ui.folder = el('div', { class: 'fold', style: 'display:none' });
-    var ft = ui.ft = el('div', { class: 'ft' }, [ui.folder, ui.att, ui.len, el('div', { class: 'row', style: 'align-items:flex-end' }, [clip, ui.input, ui.send]), ui.file]);
+    ui.tool = el('div', { class: 'tool', text: '이 문서의 칸을 채우는 도구입니다. 일반 질문은 Claude에서 하세요. 명단은 엑셀에서 복사해 붙이면 표에 바로 들어갑니다.' });
+    var ft = ui.ft = el('div', { class: 'ft' }, [ui.folder, ui.att, ui.len, el('div', { class: 'row', style: 'align-items:flex-end' }, [clip, ui.input, ui.send]), ui.tool, ui.file]);
     drawLen();
-    ui.panel = el('div', { id: 'seoil-ai' }, [hd, ui.set, ui.log, ft]);
+    ui.panel = el('div', { id: 'seoil-ai' }, [hd, ui.set, ui.board, ui.log, ft]);
     ui.set.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
     ['keydown', 'keyup', 'keypress'].forEach(function (t) { ui.panel.addEventListener(t, function (e) { e.stopPropagation(); }); });
     ui.panel.addEventListener('drop', function (e) { e.preventDefault(); e.stopPropagation(); addFiles(e.dataTransfer.files); });
@@ -313,6 +342,7 @@
     ui.setOn = !!on;
     ui.set.style.display = on ? 'flex' : 'none';
     ui.log.style.display = on ? 'none' : '';
+    if (ui.board) ui.board.style.display = on || !(track.ids && track.ids.length) ? 'none' : '';
     ui.ft.style.display = on ? 'none' : '';
     ui.setBtn.classList.toggle('on', !!on);
     ui.setBtn.textContent = on ? '← 대화' : '설정';
@@ -529,7 +559,54 @@
     var left = c.total, all = Math.max(base.total, left);
     ui.prog.textContent = '';
     ui.bar.style.width = all ? Math.round((all - left) * 100 / all) + '%' : '0';
+    try { drawBoard(m); } catch (e) { console.warn('[seoil-ai] board', e); }
     return m;
+  }
+  // ---------- 칸 목록 ----------
+  // 처음 본 양식의 빈칸·자리표시 칸을 기억해 두고(track), 그 뒤로 채워졌는지·초안인지·묻는 중인지 보여 준다
+  var track = { fp: null, ids: [], label: {}, table: {} };
+  function drawBoard(m) {
+    if (!ui.board) return;
+    var fill = S.mode === 'fill';
+    ui.title.textContent = S.mode === 'rewrite' ? '고쳐 쓰기' : (writable() && m && !window.SeoilFill.looksFilled(m) && !counts(m).total) ? '보고서 쓰기' : '양식 채우기';
+    if (!m || !fill) { ui.board.style.display = 'none'; ui.steps.style.display = 'none'; return; }
+    if (track.fp !== base.fp) { // 새 양식: 채울 칸을 다시 잡는다
+      track = { fp: base.fp, ids: [], label: {}, table: {} };
+      m.tables.forEach(function (t) { if (t.guideBox) return; t.cells.forEach(function (c) { if (c.kind === 'empty' || c.kind === 'ph') { track.ids.push(c.id); track.label[c.id] = c.label || ''; track.table[c.id] = t.id; } }); });
+    }
+    if (!track.ids.length) { ui.board.style.display = 'none'; ui.steps.style.display = 'none'; return; }
+    var by = {}; m.tables.forEach(function (t) { t.cells.forEach(function (c) { by[c.id] = c; }); });
+    function st(id) {
+      var c = by[id]; if (!c) return 'ok';
+      if (c.kind === 'empty' || c.kind === 'ph') return (S.asking && track.label[id] && S.asking.indexOf(track.label[id].split(' / ').pop()) >= 0) ? 'as' : 'em';
+      return /\[확인 필요\]/.test(c.text) ? 'dr' : 'ok';
+    }
+    // 칸이 많은 표(명단 등)는 한 줄로 묶는다
+    var perT = {}; track.ids.forEach(function (id) { (perT[track.table[id]] = perT[track.table[id]] || []).push(id); });
+    var rows = [], n = { ok: 0, dr: 0, em: 0, as: 0 };
+    track.ids.forEach(function (id) { n[st(id)]++; });
+    Object.keys(perT).forEach(function (tid) {
+      var ids = perT[tid];
+      if (ids.length > 6) {
+        var done = ids.filter(function (id) { var x = st(id); return x === 'ok' || x === 'dr'; }).length;
+        var heads = []; ids.forEach(function (id) { var h = (track.label[id] || '').split(' / ')[0]; if (h && heads.indexOf(h) < 0 && heads.length < 3) heads.push(h); });
+        rows.push({ name: (heads.join('·') || '표') + ' 표 · ' + ids.length + '칸', tag: done ? done + '칸 채움' : '빈칸', cls: done === ids.length ? 'ok' : '', say: (heads.join('·') || '표') + ' 표' });
+      } else ids.forEach(function (id) {
+        var x = st(id);
+        rows.push({ name: track.label[id] || '(이름 없는 칸)', tag: { ok: '채움', dr: '초안 · 확인 필요', em: '빈칸', as: '물어보는 중' }[x], cls: x === 'em' ? '' : x, say: track.label[id] || '' });
+      });
+    });
+    ui.boardList.innerHTML = '';
+    rows.slice(0, 40).forEach(function (r) {
+      ui.boardList.appendChild(el('button', { type: 'button', class: 'br', title: '이 칸을 짚어 말하기', onclick: function () { if (!r.say) return; ui.input.value = '「' + r.say + '」 칸: ' + ui.input.value.replace(/^「[^」]*」 칸: /, ''); ui.input.focus(); } },
+        [el('span', { class: 'nm', text: r.name }), el('span', { class: 'tag ' + r.cls, text: r.tag })]));
+    });
+    var filled = n.ok + n.dr;
+    ui.boardSum.textContent = track.ids.length + '칸 중 ' + filled + '칸 채움' + (n.dr ? ' · 확인 필요 ' + n.dr : '');
+    ui.board.style.display = ui.setOn ? 'none' : '';
+    var stage = !S.msgs.length ? 0 : (filled >= track.ids.length ? 2 : 1);
+    ui.steps.style.display = '';
+    Array.prototype.forEach.call(ui.steps.children, function (x, i) { x.classList.toggle('on', i === stage); });
   }
 
   function toggle() {
@@ -574,11 +651,23 @@
       ]));
       return;
     }
-    say('ai', '메모·녹취·사진·요청 공문을 넣거나, 무엇에 대한 문서인지 말해 주세요.' + (guide ? '\n※ 「작성방법」 안내 상자는 채우지 않습니다. 제출 전에 지워 주세요.' : ''));
-    var row = el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' });
-    row.appendChild(el('button', { class: 'chip', text: '내 정보로 채울 수 있는 칸부터', onclick: function () { send('내 정보와 오늘 날짜로 채울 수 있는 칸부터 채워 주세요. 나머지는 하나씩 물어봐 주세요.'); } }));
-    if (!profile().name) row.appendChild(el('button', { class: 'chip', text: '내 정보 입력', onclick: function () { setOpen(true); } }));
-    ui.log.appendChild(row);
+    // 채팅 인사 대신 「자료 넣기」 카드(2026-11-27): 여기는 Claude 채팅이 아니라 이 문서의 칸을 채우는 도구다
+    ui.log.appendChild(el('div', { class: 'intake g0' }, [
+      el('b', { text: '이 문서에 쓸 자료를 넣어 주세요' }),
+      el('div', { style: 'font-size:12.5px;color:#4A5058', text: '회의 메모 · 녹취 · 요청 공문 · 사진 · 화면 캡처. 넣은 자료에 있는 내용으로 칸을 채웁니다.' }),
+      el('div', { class: 'row', style: 'gap:8px' }, [
+        el('button', { class: 'big pri', style: 'flex:1', text: '파일 · 사진 넣기', onclick: function () { ui.file.click(); } }),
+        el('button', { class: 'big', style: 'flex:1;text-align:center', text: '글 붙여 넣기', onclick: function () { S.topic = false; ui.input.placeholder = '긁어 온 글을 여기에 붙여 넣고 보내기'; ui.input.focus(); } }),
+      ]),
+      el('div', { style: 'font-size:12px;color:#5F6670', text: '캡처한 그림은 이 창에 그대로 붙여 넣어도 됩니다.' }),
+    ]));
+    ui.log.appendChild(el('div', { class: 'g0', style: 'font-size:12px;color:#3D434B;font-weight:700', text: '자료가 없으면' }));
+    var topicBtn = el('button', { class: 'big g0', onclick: function () { S.topic = true; ui.input.placeholder = PH_TOPIC; ui.input.focus(); } });
+    topicBtn.appendChild(document.createTextNode('주제만 말하고 초안 받기 ')); topicBtn.appendChild(el('small', { text: '— 확인 필요 표시가 붙습니다' }));
+    ui.log.appendChild(topicBtn);
+    ui.log.appendChild(el('button', { class: 'big g0', text: '내 정보로 채울 수 있는 칸만 채우기', onclick: function () { send('내 정보와 오늘 날짜로 채울 수 있는 칸부터 채워 주세요. 나머지는 하나씩 물어봐 주세요.'); } }));
+    if (!profile().name) ui.log.appendChild(el('button', { class: 'big g0', text: '내 정보 입력 (소속 · 성명 — 한 번만)', onclick: function () { setOpen(true); } }));
+    if (guide) say('sys', '※ 「작성방법」 안내 상자는 채우지 않습니다. 제출 전에 지워 주세요.');
     if (!ready()) say('sys', notReady());
   }
 
@@ -767,13 +856,18 @@
     var m = scan();
     if ((!m || (!m.tables.length && !m.paras.length)) && !writable()) { say('err', '채울 양식이 열려 있지 않습니다.'); return; }
     if (!ready()) { say('err', notReady()); return; }
+    var shown = text;
+    if (S.topic && text && !S.attach.length) text = '자료는 없습니다. 아래 주제만으로 초안을 써 주세요(실제 발언·결정·수치 자리는 [확인 필요], 날짜·장소·이름 같은 사실 칸은 비우고 물어보기).\n주제: ' + text;
+    S.topic = false; S.asking = ''; ui.input.placeholder = PH_INPUT;
     var content = [];
     if (S.pendingTool) { content.push({ type: 'tool_result', tool_use_id: S.pendingTool.id, content: S.pendingTool.result || '적용됨' }); S.pendingTool = null; }
     S.attach.forEach(function (a) { content.push(a.block); });
     content.push({ type: 'text', text: docState(m, text) + '\n\n[사용자] ' + (text || '첨부한 자료로 양식을 채워 주세요.') });
-    say('me', (S.attach.length ? '첨부 ' + S.attach.map(function (a) { return a.name; }).join(', ') + (text ? '\n' : '') : '') + (text || ''));
+    say('me', (S.attach.length ? '첨부 ' + S.attach.map(function (a) { return a.name; }).join(', ') + (shown ? '\n' : '') : '') + (shown || ''));
     S.attach = []; drawAttach(); ui.input.value = '';
+    Array.prototype.forEach.call(ui.log.querySelectorAll('.g0'), function (x) { x.remove(); });
     S.msgs.push({ role: 'user', content: content });
+    refreshForm();
     ui.log.querySelectorAll('.q button, .ml button').forEach(function (b) { b.disabled = true; });
     call();
   }
@@ -791,7 +885,7 @@
     p.then(function (res) {
       thinking.remove();
       S.msgs.push({ role: 'assistant', content: res.content });
-      handle(res.content);
+      handle(res.content); refreshForm();
       if (!isMock() && !ownKey() && ls(LS_TOKEN)) fetchMe().catch(function () {});
     }).catch(function (err) {
       thinking.remove(); S.msgs.pop();
@@ -836,6 +930,12 @@
   }
 
   /** ops 실행: 스냅샷 → 쓰기 → 구조 검사(다르면 되돌림) → 결과 글(AI에게 돌려줄 tool_result) */
+  // 채운 칸을 사람이 읽는 이름으로(T2.r0c1 → 프로그램명). 이름이 없는 칸은 번호 그대로
+  function doneNames(done, m) {
+    var by = {}; try { m.tables.forEach(function (t) { t.cells.forEach(function (c) { by[c.id] = c.label; }); }); } catch (e) {}
+    var out = []; (done || []).forEach(function (id) { var n = by[id] || track.label[id] || id; if (out.indexOf(n) < 0) out.push(n); });
+    return out;
+  }
   function applyOps(ops, label) {
     var d = doc(); if (!d) return '문서 없음';
     var before = scan(), snap = null;
@@ -886,7 +986,7 @@
       bridge().changed('seoil-ai-fill');
       var box = el('div', { class: 'applied' }, [
         el('span', { style: 'color:#1E8E5A;font-weight:700', text: '✓' }),
-        el('span', { style: 'flex:1', text: label || ('썼습니다: ' + r.done.slice(0, 8).join(', ') + (r.done.length > 8 ? ' …' : '')) }),
+        el('span', { style: 'flex:1', text: label || ('채웠습니다: ' + doneNames(r.done, before).slice(0, 6).join(' · ') + (r.done.length > 6 ? ' 외 ' + (r.done.length - 6) + '칸' : '')) }),
       ]);
       if (snap != null) {
         box.appendChild(el('button', { class: 'chip', style: 'font-size:12px;padding:2px 10px', text: '되돌리기', onclick: function () {
@@ -906,6 +1006,7 @@
   }
 
   function ask(q) {
+    S.asking = String(q.about || '') + ' ' + String(q.text || ''); try { drawBoard(scan()); } catch (e) {}
     var opts = el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' });
     (q.options || []).forEach(function (o) { opts.appendChild(el('button', { class: 'chip', text: o, onclick: function () { send(o); } })); });
     opts.appendChild(el('button', { class: 'chip', text: '직접 쓰기', onclick: function () { ui.input.focus(); } }));
@@ -932,7 +1033,7 @@
     ui.log.animate([{ opacity: 0.15 }, { opacity: 1 }], { duration: 350, easing: 'ease-out' });
     say('sys', '새 대화를 시작했습니다.');
   }
-  function reset(quiet, keepMode) { if (!keepMode) S.mode = 'fill'; S.msgs = []; S.pendingTool = null; ui.log.innerHTML = ''; base = { fp: null, total: 0 }; refreshForm(); if (!quiet) greet(); }
+  function reset(quiet, keepMode) { if (!keepMode) S.mode = 'fill'; S.topic = false; S.asking = ''; track = { fp: null, ids: [], label: {}, table: {} }; if (ui.input) ui.input.placeholder = PH_INPUT; S.msgs = []; S.pendingTool = null; ui.log.innerHTML = ''; base = { fp: null, total: 0 }; refreshForm(); if (!quiet) greet(); }
 
   // ---------- 시험 모드: 첫 자리표시 하나만 바꾸고 질문 하나 ----------
   var mockStep = 0;
