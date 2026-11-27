@@ -170,10 +170,17 @@ async function signup(req, env, h) {
   const t = token(); await putJ(env, `sess:${t}`, { email }, 180 * 86400);
   return json({ ok: true, token: t, user: publicUser(env, user, await usage(env, 'u:' + email)) }, 200, h);
 }
+// 비밀번호 확인: 친 그대로 먼저 보고, 안 맞으면 앞뒤 공백을 뗀 것으로 한 번 더(아이패드 자동 완성이 끝에 공백을 붙이는 일이 있다)
+async function pwOk(user, raw) {
+  const pw = String(raw || '');
+  if ((await hashPw(pw, user.salt)) === user.pw) return true;
+  const t = pw.trim();
+  return t !== pw && (await hashPw(t, user.salt)) === user.pw;
+}
 async function login(req, env, h) {
   const b = await req.json().catch(() => ({}));
   const email = normEmail(b.email), user = await getJ(env, `user:${email}`, null);
-  if (!user || (await hashPw(String(b.password || ''), user.salt)) !== user.pw) return fail('이메일이나 비밀번호가 맞지 않습니다.', 401, h, 'authentication_error');
+  if (!user || !(await pwOk(user, b.password))) return fail('이메일이나 비밀번호가 맞지 않습니다.', 401, h, 'authentication_error');
   const t = token(); await putJ(env, `sess:${t}`, { email }, 180 * 86400);
   return json({ ok: true, token: t, user: publicUser(env, user, await usage(env, 'u:' + email)) }, 200, h);
 }
@@ -182,7 +189,7 @@ async function password(req, env, h) {
   if (w.err) return w.err;
   if (!w.user) return fail('로그인해 주세요.', 401, h, 'authentication_error');
   const b = await req.json().catch(() => ({}));
-  if ((await hashPw(String(b.old || ''), w.user.salt)) !== w.user.pw) return fail('지금 비밀번호가 맞지 않습니다.', 401, h);
+  if (!(await pwOk(w.user, b.old))) return fail('지금 비밀번호가 맞지 않습니다.', 401, h);
   if (String(b.new || '').length < 8) return fail('새 비밀번호는 8자 이상으로 해 주세요.', 400, h);
   w.user.salt = hex(crypto.getRandomValues(new Uint8Array(16))); w.user.pw = await hashPw(String(b.new), w.user.salt);
   await putJ(env, `user:${w.user.email}`, w.user);
@@ -455,7 +462,7 @@ async function oaAuthorize(req, env) {
   const fails = (await ostore(env, { op: 'get', k: 'fail:' + email })).v || 0;
   if (fails >= 8) return loginPage(q, client, '로그인을 여러 번 틀렸습니다. 10분 뒤에 다시 해 주세요.');
   const user = await getJ(env, `user:${email}`, null);
-  if (!user || (await hashPw(String(form.password || ''), user.salt)) !== user.pw) {
+  if (!user || !(await pwOk(user, form.password))) {
     await ostore(env, { op: 'put', k: 'fail:' + email, v: fails + 1, ttl: 600 });
     return loginPage(q, client, '이메일이나 비밀번호가 맞지 않습니다.');
   }
