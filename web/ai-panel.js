@@ -83,7 +83,9 @@
     '#seoil-ai .fold .fi span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#seoil-ai .fold .fi small{color:#8A9099;flex:none}',
     '#seoil-ai .fold .fn{padding:14px 10px;font-size:12px;color:#5F6670;text-align:center}',
     '#seoil-ai .att{display:flex;flex-wrap:wrap;gap:6px}#seoil-ai .att span{font-size:12px;background:#EEF2FD;color:#2F5BEA;border-radius:6px;padding:2px 8px}',
-    '#seoil-ai textarea,#seoil-ai input[type=text],#seoil-ai input[type=password]{width:100%;font:inherit;font-size:13px;border:1px solid #D9DCE1;border-radius:8px;padding:8px 10px;resize:none}',
+    '#seoil-ai textarea,#seoil-ai input[type=text],#seoil-ai input[type=password],#seoil-ai input[type=email]{width:100%;box-sizing:border-box;font:inherit;font-size:13px;border:1px solid #D9DCE1;border-radius:8px;padding:8px 10px;resize:none}',
+    '#seoil-ai .card input[type=text],#seoil-ai .card input[type=password],#seoil-ai .card input[type=email]{font-size:15px;min-height:40px}',
+    '@media (pointer:coarse){#seoil-ai .card input[type=text],#seoil-ai .card input[type=password],#seoil-ai .card input[type=email]{font-size:16px;min-height:46px;padding:10px 12px}}',
     '#seoil-ai .send{font:inherit;font-size:13px;padding:0 14px;height:40px;border:0;border-radius:8px;background:#2F5BEA;color:#fff;cursor:pointer;flex:none}#seoil-ai .send:disabled{background:#9DB2F5;cursor:default}',
     '#seoil-ai .clip{border:1px solid #D9DCE1;background:#fff;border-radius:8px;width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;flex:none;cursor:pointer}',
     '#seoil-ai .set{flex:1;padding:12px 14px 16px;display:flex;flex-direction:column;gap:10px;background:#FAFAFB;overflow:auto}',
@@ -349,11 +351,11 @@
       var o = {}; PROFILE_FIELDS.forEach(function (f) { var v = inputs[f[0]].value.trim(); if (v) o[f[0]] = v; });
       ls(LS_PROFILE, JSON.stringify(o)); pSum.textContent = '✓ ' + profileSum(); pCard.fold();
     } })]));
-    pCard = card('내 정보', pSum, pBody, !profile().name);
+    pCard = card('내 정보', pSum, pBody, !profile().name && !!ls(LS_TOKEN));
+    ui.set.appendChild(accountCard()); // 로그인이 맨 위(2026-11-27): 아이패드에서 내 정보 카드에 밀려 화면 밖에 있었다
     ui.set.appendChild(pCard);
 
     // 2) 학교 AI 로그인 (예전 사용 코드는 「코드로 쓰기」 안에)
-    ui.set.appendChild(accountCard());
 
     // 3) 설치판: 내 Claude(데스크톱·Claude Code)가 서일 오피스를 다루게
     var D = window.seoilDesktop;
@@ -392,16 +394,18 @@
     function note(t) { msg.style.color = ''; msg.textContent = t; }
     var body = [];
     if (ls(LS_TOKEN)) {
-      var oldPw = el('input', { type: 'password', placeholder: '지금 비밀번호 (임시 비밀번호를 받았으면 그것)', autocomplete: 'current-password' });
+      var oldPw = el('input', { type: 'password', placeholder: '지금 비밀번호 (또는 임시 비밀번호)', autocomplete: 'current-password' });
       var newPw = el('input', { type: 'password', placeholder: '새 비밀번호 (8자 이상)', autocomplete: 'new-password' });
-      var pwBox = el('div', { class: 'body', style: 'display:none' }, [oldPw, newPw, el('div', { class: 'row' }, [el('button', { class: 'send', style: 'height:32px', text: '바꾸기', onclick: function () {
-        post('/v1/password', { old: oldPw.value, new: newPw.value }).then(function () { oldPw.value = newPw.value = ''; pwBox.style.display = 'none'; note('비밀번호를 바꿨습니다.'); }, err);
+      var newPw2 = el('input', { type: 'password', placeholder: '새 비밀번호 한 번 더', autocomplete: 'new-password' });
+      var pwBox = el('div', { class: 'body' }, [el('b', { style: 'font-size:13px', text: '비밀번호 바꾸기' }), oldPw, newPw, newPw2, el('div', { class: 'row' }, [el('button', { class: 'send', style: 'height:36px', text: '바꾸기', onclick: function () {
+        if (newPw.value.length < 8) return err(new Error('새 비밀번호는 8자 이상으로 해 주세요.'));
+        if (newPw.value !== newPw2.value) return err(new Error('새 비밀번호 두 칸이 서로 다릅니다. 다시 넣어 주세요.'));
+        post('/v1/password', { old: oldPw.value, new: newPw.value }).then(function () { oldPw.value = newPw.value = newPw2.value = ''; note('비밀번호를 바꿨습니다.'); }, err);
       } })])]);
       // 지금 어느 계정으로 로그인돼 있는지(이메일)를 늘 보여 준다 — 비밀번호를 바꾸거나 관리자에게 물을 때 필요하다
       var who = el('div', { class: 'note', text: meCache && meCache.email ? '로그인한 계정: ' + meCache.email : '로그인한 계정 확인 중…' });
       body.push(who);
       body.push(el('div', { class: 'row', style: 'flex-wrap:wrap;gap:6px' }, [
-        el('button', { class: 'chip', text: '비밀번호 바꾸기', onclick: function () { pwBox.style.display = pwBox.style.display === 'none' ? '' : 'none'; } }),
         el('button', { class: 'chip', text: '로그아웃', onclick: function () { post('/v1/logout').catch(function () {}).then(function () { ls(LS_TOKEN, null); meCache = null; try { var D = window.seoilDesktop; if (D && D.relayStop) D.relayStop(); } catch (e) {} drawSettings(); }); } }),
       ]), pwBox, msg);
       fetchMe().then(function (j) {
@@ -410,7 +414,7 @@
         if (j.status === 'pending') note('관리자가 가입을 승인하면 바로 쓸 수 있습니다.');
         else if (j.status === 'active') note('이번 달 사용량 ' + j.used + '% (매달 1일에 다시 채워집니다)');
       }, function (e) { if (e.status === 401) { ls(LS_TOKEN, null); meCache = null; sum.textContent = '로그인 안 함'; } err(e); });
-      return card('학교 AI', sum, body, false);
+      return card('학교 AI', sum, body, true); // 펼친 채로: 로그인한 계정·비밀번호 바꾸기가 바로 보이게
     }
     // 로그인 / 가입
     var mode = 'login';
@@ -420,12 +424,14 @@
     var nm = el('input', { type: 'text', placeholder: '이름', value: p.name || '' });
     var org = el('input', { type: 'text', placeholder: '소속 (예: 서일대학교)', value: p.org || '' });
     var dept = el('input', { type: 'text', placeholder: '학과·부서', value: p.dept || '' });
-    var extra = el('div', { class: 'body', style: 'display:none' }, [nm, org, dept]);
+    var pw2 = el('input', { type: 'password', placeholder: '비밀번호 한 번 더', autocomplete: 'new-password' });
+    var extra = el('div', { class: 'body', style: 'display:none' }, [pw2, nm, org, dept]);
     var go = el('button', { class: 'send', style: 'height:34px', text: '로그인' });
     var sw = el('button', { class: 'link', text: '처음이면 가입하기' });
     function setMode(m) { mode = m; extra.style.display = m === 'signup' ? '' : 'none'; go.textContent = m === 'signup' ? '가입' : '로그인'; sw.textContent = m === 'signup' ? '이미 가입했으면 로그인' : '처음이면 가입하기'; pw.autocomplete = m === 'signup' ? 'new-password' : 'current-password'; note(''); }
     sw.addEventListener('click', function () { setMode(mode === 'login' ? 'signup' : 'login'); });
     go.addEventListener('click', function () {
+      if (mode === 'signup' && pw.value !== pw2.value) return err(new Error('비밀번호 두 칸이 서로 다릅니다. 다시 넣어 주세요.'));
       go.disabled = true; note(mode === 'signup' ? '가입하는 중…' : '로그인하는 중…');
       var req = mode === 'signup'
         ? post('/v1/signup', { email: email.value, password: pw.value, name: nm.value, org: org.value, dept: dept.value })
