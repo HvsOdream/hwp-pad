@@ -171,6 +171,16 @@ async function signup(req, env, h) {
   return json({ ok: true, token: t, user: publicUser(env, user, await usage(env, 'u:' + email)) }, 200, h);
 }
 // 비밀번호 확인: 친 그대로 먼저 보고, 안 맞으면 앞뒤 공백을 뗀 것으로 한 번 더(아이패드 자동 완성이 끝에 공백을 붙이는 일이 있다)
+// 비밀번호(salt·pw)는 바로 반영되는 저장소(OAuthStore)에도 적는다 — KV는 바꾼 값이 최대 1분쯤 늦게 읽혀서,
+// 임시 비밀번호를 받자마자 로그인하면 예전 값과 맞춰 보고 "맞지 않습니다"가 나왔다(2026-11-27).
+async function setPw(env, user, plain) {
+  user.salt = hex(crypto.getRandomValues(new Uint8Array(16))); user.pw = await hashPw(String(plain), user.salt);
+  await ostore(env, { op: 'put', k: 'pw:' + user.email, v: { salt: user.salt, pw: user.pw } });
+}
+async function freshPw(env, user) {
+  try { const r = (await ostore(env, { op: 'get', k: 'pw:' + user.email })).v; if (r && r.salt && r.pw) { user.salt = r.salt; user.pw = r.pw; } } catch (e) {}
+  return user;
+}
 async function pwOk(user, raw) {
   const pw = String(raw || '');
   if ((await hashPw(pw, user.salt)) === user.pw) return true;
@@ -180,6 +190,7 @@ async function pwOk(user, raw) {
 async function login(req, env, h) {
   const b = await req.json().catch(() => ({}));
   const email = normEmail(b.email), user = await getJ(env, `user:${email}`, null);
+  if (user) await freshPw(env, user);
   if (!user || !(await pwOk(user, b.password))) return fail('이메일이나 비밀번호가 맞지 않습니다.', 401, h, 'authentication_error');
   const t = token(); await putJ(env, `sess:${t}`, { email }, 180 * 86400);
   return json({ ok: true, token: t, user: publicUser(env, user, await usage(env, 'u:' + email)) }, 200, h);
@@ -189,9 +200,10 @@ async function password(req, env, h) {
   if (w.err) return w.err;
   if (!w.user) return fail('로그인해 주세요.', 401, h, 'authentication_error');
   const b = await req.json().catch(() => ({}));
+  await freshPw(env, w.user);
   if (!(await pwOk(w.user, b.old))) return fail('지금 비밀번호가 맞지 않습니다.', 401, h);
   if (String(b.new || '').length < 8) return fail('새 비밀번호는 8자 이상으로 해 주세요.', 400, h);
-  w.user.salt = hex(crypto.getRandomValues(new Uint8Array(16))); w.user.pw = await hashPw(String(b.new), w.user.salt);
+  await setPw(env, w.user, b.new);
   await putJ(env, `user:${w.user.email}`, w.user);
   return json({ ok: true }, 200, h);
 }
@@ -301,11 +313,11 @@ async function admin(req, env, h, path) {
     }
     const k = `user:${normEmail(b.email)}`, user = await getJ(env, k, null);
     if (!user) return fail('없는 사용자', 404, h);
-    if (b.delete) { await env.KV.delete(k); return json({ ok: true }, 200, h); }
+    if (b.delete) { await env.KV.delete(k); await ostore(env, { op: 'del', k: 'pw:' + user.email }).catch(() => {}); return json({ ok: true }, 200, h); }
     if (b.status && ['pending', 'active', 'off'].includes(b.status)) user.status = b.status;
     if (b.budget != null) user.budget = Math.max(0, Number(b.budget) || 0);
     let temp;
-    if (b.resetPassword) { temp = hex(crypto.getRandomValues(new Uint8Array(5))); user.salt = hex(crypto.getRandomValues(new Uint8Array(16))); user.pw = await hashPw(temp, user.salt); }
+    if (b.resetPassword) { temp = hex(crypto.getRandomValues(new Uint8Array(5))); await setPw(env, user, temp); }
     await putJ(env, k, user);
     return json({ ok: true, temp }, 200, h);
   }
@@ -462,6 +474,7 @@ async function oaAuthorize(req, env) {
   const fails = (await ostore(env, { op: 'get', k: 'fail:' + email })).v || 0;
   if (fails >= 8) return loginPage(q, client, '로그인을 여러 번 틀렸습니다. 10분 뒤에 다시 해 주세요.');
   const user = await getJ(env, `user:${email}`, null);
+  if (user) await freshPw(env, user);
   if (!user || !(await pwOk(user, form.password))) {
     await ostore(env, { op: 'put', k: 'fail:' + email, v: fails + 1, ttl: 600 });
     return loginPage(q, client, '이메일이나 비밀번호가 맞지 않습니다.');
