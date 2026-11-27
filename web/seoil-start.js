@@ -357,7 +357,12 @@
     ui.guideMode = 'guide'; drawGuide(); ui.main.style.display = 'none'; ui.guide.style.display = ''; ui.root.scrollTop = 0;
   }
   // 홈의 「설정」(2026-11-25): 내 AI 연결은 「Claude로 작성하기」 안이 아니라 여기에 둔다 — 연결은 한 번 해 두는 설정이고, 작성하기는 쓰는 법 안내
-  function openSettings() { openGuide(); ui.guideMode = 'settings'; drawGuide(); }
+  function openSettings() {
+    // 아이패드·웹(2026-11-27): 설정을 누르면 설치판 안내가 아니라 로그인·내 정보가 바로 보여야 한다 — AI 패널의 설정 장을 홈 위에 연다.
+    // 내 Claude 연결(설치판 전용) 안내는 설치판에서만 설정 화면으로 보여 준다.
+    if (!window.seoilDesktop && window.SeoilAI && window.SeoilAI.settings) { window.SeoilAI.open(true); window.SeoilAI.settings(true); return; }
+    openGuide(); ui.guideMode = 'settings'; drawGuide();
+  }
   function closeGuide() { if (ui.guide) ui.guide.style.display = 'none'; ui.main.style.display = ''; }
   function drawGuide() {
     var SET = ui.guideMode === 'settings';
